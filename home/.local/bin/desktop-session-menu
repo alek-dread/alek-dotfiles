@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+
+action=$(printf '%s\n' 'Lock' 'Suspend' 'Log out' 'Reboot' 'Power off' | fuzzel --dmenu --prompt='Session > ' --lines=5) || exit 0
+
+case "$action" in
+    Lock)
+        loginctl lock-session
+        ;;
+    Suspend)
+        systemctl suspend
+        ;;
+    'Log out' | Reboot | 'Power off')
+        answer=$(printf '%s\n' 'Cancel' 'Confirm' | fuzzel --dmenu --prompt="$action > " --lines=2) || exit 0
+        [ "$answer" = Confirm ] || exit 0
+
+        case "$action" in
+            'Log out')
+                uwsm stop
+                ;;
+            Reboot)
+                systemctl reboot
+                ;;
+            'Power off')
+                systemctl poweroff
+                ;;
+        esac
+        ;;
+esac

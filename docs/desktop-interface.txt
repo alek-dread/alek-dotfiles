@@ -1,0 +1,7 @@
+color-scheme='prefer-dark'
+gtk-theme='adw-gtk3-dark'
+icon-theme='Adwaita'
+cursor-theme='Adwaita'
+cursor-size=24
+font-name='Adwaita Sans 11'
+monospace-font-name='Fira Code 11'

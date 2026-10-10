@@ -1,0 +1,84 @@
+* {
+    font-family: "Iosevka Aile";
+    font-size: 14px;
+    border: none;
+    border-radius: 0;
+    min-height: 0;
+}
+
+window#waybar {
+    background: #282828;
+    color: #d4c7ad;
+}
+
+#workspaces button {
+    font-weight: 700;
+    padding: 0 12px;
+    min-width: 0;
+    color: #928374;
+    background: transparent;
+}
+
+#workspaces button:not(.empty) {
+    color: #a3a878;
+    background: #3c3836;
+}
+
+#workspaces button:hover {
+    background: #504945;
+    box-shadow: none;
+}
+
+#workspaces button.active {
+    background: #a3a878;
+    color: #282828;
+}
+
+#workspaces button.urgent {
+    background: #b8796c;
+    color: #282828;
+}
+
+#window {
+    color: #a89984;
+}
+
+#tray,
+#language,
+#pulseaudio,
+#network,
+#clock {
+    font-weight: 700;
+    padding: 0 9px;
+}
+
+#tray {
+    color: #d4c7ad;
+}
+
+#language {
+    color: #b3919e;
+}
+
+#pulseaudio {
+    color: #c1a16b;
+}
+
+#network {
+    color: #8caaa0;
+}
+
+#clock {
+    color: #8c9c91;
+}
+
+#pulseaudio.muted,
+#network.disconnected {
+    color: #b8796c;
+}
+
+tooltip {
+    background: #32302f;
+    color: #d4c7ad;
+    border: 1px solid #504945;
+}

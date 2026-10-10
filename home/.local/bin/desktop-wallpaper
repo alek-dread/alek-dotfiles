@@ -1,0 +1,53 @@
+#!/usr/bin/python3
+"""Choose a persistent desktop wallpaper for swaybg."""
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+current = Path.home() / '.local/share/wallpapers/current'
+service = r'app-hyprland\x2dbackground@autostart.service'
+english_env = {**os.environ, 'LC_ALL': 'en_US.UTF-8', 'LANGUAGE': 'en'}
+
+def fail(message):
+    print(message, file=sys.stderr)
+    if len(sys.argv) == 1:
+        subprocess.run(['zenity', '--error', '--title=Wallpaper', '--text=' + message], env=english_env)
+    sys.exit(1)
+
+if sys.argv[1:] == ['--help']:
+    print('desktop-wallpaper [IMAGE]\nWithout arguments: choose an image.\n--show: current image path.')
+    sys.exit(0)
+if sys.argv[1:] == ['--show']:
+    print(current.resolve())
+    sys.exit(0)
+if len(sys.argv) > 2:
+    fail('Usage: desktop-wallpaper [IMAGE]')
+if len(sys.argv) == 1:
+    choice = subprocess.run(['zenity', '--file-selection', '--title=Wallpaper',
+        '--filename=' + str(Path.home() / 'Pictures') + '/',
+        '--file-filter=Images | *.jpg *.jpeg *.png *.webp *.JPG *.JPEG *.PNG *.WEBP'],
+        capture_output=True, text=True, env=english_env)
+    if choice.returncode:
+        sys.exit(0)
+    filename = choice.stdout.rstrip('\n')
+else:
+    filename = sys.argv[1]
+image = Path(filename).expanduser().resolve()
+if not image.is_file() or not os.access(image, os.R_OK):
+    fail(f'Cannot read image: {image}')
+previous = os.readlink(current) if current.is_symlink() else None
+temporary = current.with_name(f'.current-{os.getpid()}')
+try:
+    current.parent.mkdir(parents=True, exist_ok=True)
+    temporary.symlink_to(image)
+    temporary.replace(current)
+    subprocess.run(['systemctl', '--user', 'restart', service], check=True)
+except Exception as error:
+    temporary.unlink(missing_ok=True)
+    if previous is not None:
+        temporary.symlink_to(previous)
+        temporary.replace(current)
+        subprocess.run(['systemctl', '--user', 'restart', service])
+    fail(f'Cannot apply wallpaper: {error}')
+print(f'Wallpaper: {image}')

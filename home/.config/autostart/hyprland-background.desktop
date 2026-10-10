@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=background
+Exec=swaybg -i /home/alek/.local/share/wallpapers/current -m fill
+OnlyShowIn=Hyprland;

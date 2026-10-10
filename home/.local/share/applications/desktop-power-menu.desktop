@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Power Modes
+Comment=Switch between Power Saver, Balanced and Performance modes
+Exec=/home/alek/.local/bin/desktop-power-menu
+Icon=preferences-system-power
+Terminal=false
+Categories=Settings;
+Keywords=power;tuned;performance;balanced;power saver;

@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+umask 077
+
+exec 9> "${XDG_RUNTIME_DIR:?}/desktop-screenshot.lock"
+flock -n 9 || exit 0
+
+dir="$(xdg-user-dir PICTURES)/Screenshots"
+mkdir -p "$dir"
+file="$dir/$(date +%Y-%m-%d_%H-%M-%S)-$$.png"
+
+case "${1:-region}" in
+    region)
+        geometry=$(slurp -b 28282880 -c a3a878 -w 2) || exit 0
+        grim -g "$geometry" "$file"
+        ;;
+    screen)
+        grim "$file"
+        ;;
+    *)
+        exit 2
+        ;;
+esac
+
+wl-copy --type image/png < "$file" 9>&-
+notify-send 'Screenshot saved' "$file" 9>&-

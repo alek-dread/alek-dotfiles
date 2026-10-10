@@ -1,0 +1,57 @@
+[window]
+padding.x = 8
+padding.y = 6
+dynamic_padding = true
+decorations = "None"
+opacity = 1.0
+
+[font]
+normal.family = "IosevkaTerm Nerd Font Mono"
+normal.style = "Regular"
+bold.family = "IosevkaTerm Nerd Font Mono"
+bold.style = "Bold"
+italic.family = "IosevkaTerm Nerd Font Mono"
+italic.style = "Italic"
+bold_italic.family = "IosevkaTerm Nerd Font Mono"
+bold_italic.style = "Bold Italic"
+size = 13.0
+builtin_box_drawing = false
+
+[scrolling]
+history = 10000
+
+[cursor]
+style.shape = "Block"
+style.blinking = "On"
+
+[colors.primary]
+background = "#282828"
+foreground = "#d4c7ad"
+
+[colors.cursor]
+text = "#282828"
+cursor = "#b98a65"
+
+[colors.selection]
+text = "#d4c7ad"
+background = "#504945"
+
+[colors.normal]
+black = "#282828"
+red = "#a46258"
+green = "#858b62"
+yellow = "#a58a57"
+blue = "#687f80"
+magenta = "#947487"
+cyan = "#718e78"
+white = "#a89984"
+
+[colors.bright]
+black = "#928374"
+red = "#b8796c"
+green = "#a3a878"
+yellow = "#c1a16b"
+blue = "#8c9c91"
+magenta = "#b3919e"
+cyan = "#8caaa0"
+white = "#d4c7ad"

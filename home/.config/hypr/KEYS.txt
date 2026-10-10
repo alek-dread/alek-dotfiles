@@ -1,0 +1,33 @@
+HYPRLAND — MASTER / STACK
+
+Super+Return / T       Terminal (Alacritty)
+Super+D                Application launcher (Fuzzel)
+Super+P                Power modes (Fuzzel)
+Super+E                Files (Nautilus)
+Super+Q                Close focused window
+Super+J / K            Next / previous window in layout
+Super+Shift+J / K      Reorder stack
+Super+Shift+Return     Promote focused window to master
+Super+H / L            Resize master area
+Super+arrows           Directional focus
+Super+1…9              Select workspace
+Super+Shift+1…9        Move window to workspace
+Super+Tab              Previous workspace
+Super+F                Maximize within work area
+Super+Shift+F          Fullscreen
+Super+V                Toggle floating
+Super+mouse drag       Move (left button) / resize (right button)
+Alt+Shift              Switch US / RU keyboard
+Super+Alt+L            Lock
+Super+Shift+E          Session menu
+Ctrl+Alt+Delete        Session menu
+Super+N                Dismiss notification
+Super+Shift+N          Restore last notification
+Print                  Select screenshot area; save and copy
+Ctrl+Print             Screenshot all displays; save and copy
+Super+Shift+R          Reload Hyprland configuration
+Super+Shift+?          Show this reference
+
+Bar: click sound to open mixer; right-click to mute; scroll for volume.
+Click NET to open nmtui. All nine workspaces remain visible.
+Lock after 10 idle minutes; displays off after 15. Media inhibits idle.

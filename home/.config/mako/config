@@ -1,0 +1,17 @@
+font=IosevkaTerm Nerd Font Mono 12
+background-color=#32302f
+text-color=#d4c7ad
+border-color=#a3a878
+border-size=2
+border-radius=0
+width=360
+padding=12
+margin=8
+anchor=top-right
+default-timeout=5000
+max-visible=3
+max-history=20
+
+[urgency=critical]
+border-color=#b8796c
+default-timeout=0
