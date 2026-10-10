@@ -7,11 +7,13 @@ Includes desktop scripts, GTK settings and UWSM integration.
 - Keybindings: `home/.config/hypr/KEYS.txt`
 - Fonts: IosevkaTerm Nerd Font Mono, Iosevka Aile and Fira Code
 
-Back up existing settings, then copy `home/` into your home directory:
+Install with Python 3 (existing files are backed up automatically):
 
 ```sh
-cp -a home/. "$HOME/"
+./install.py --dry-run
+./install.py --wallpaper /path/to/image.jpg
 ```
 
-Adjust `/home/alek` paths and monitor settings. Set `~/.local/share/wallpapers/current`
-to a wallpaper image. The power menu requires custom TuneD/LACT profiles.
+Home paths are adapted automatically. Backups: `~/.local/state/alek-dotfiles/backups/`.
+The wallpaper option is optional. Install packages and fonts separately, adjust monitor
+settings, then log into Hyprland with UWSM. The power menu requires custom TuneD/LACT profiles.
