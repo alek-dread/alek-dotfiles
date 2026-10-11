@@ -3,17 +3,30 @@
 Hyprland dotfiles for Fedora 44: Waybar, Fuzzel, Mako, Alacritty, Hypridle and Hyprlock.
 Includes desktop scripts, GTK settings and UWSM integration.
 
-- Package versions: `docs/packages.txt`
+- Packages without version pins: `packages.txt`
 - Keybindings: `home/.config/hypr/KEYS.txt`
 - Fonts: IosevkaTerm Nerd Font Mono, Iosevka Aile and Fira Code
 
-Install with Python 3 (existing files are backed up automatically):
+Run as your regular user on Fedora 44 with DNF5 and sudo:
 
 ```sh
-./install.py --dry-run
-./install.py --wallpaper /path/to/image.jpg
+./install.sh
 ```
 
-Home paths are adapted automatically. Backups: `~/.local/state/alek-dotfiles/backups/`.
-The wallpaper option is optional. Install packages and fonts separately, adjust monitor
-settings, then log into Hyprland with UWSM. The power menu requires custom TuneD/LACT profiles.
+The installer enables the Hyprland and LACT COPR repositories and Terra,
+installs `packages.txt`, copies `home/` into your home directory and applies
+the GTK interface settings. Existing matching files are overwritten;
+home paths are adapted automatically. Back up your settings before running it.
+
+This snapshot covers the graphical desktop and its utilities, not all installed
+software or system settings. Adjust monitors in `~/.config/hypr/hyprland.lua`,
+then select the Hyprland UWSM session at login. Set a wallpaper after login:
+
+```sh
+desktop-wallpaper /path/to/image.jpg
+```
+
+The power menu expects the machine-specific TuneD/LACT profiles
+`xeon-eco`, `xeon-balanced` and `xeon-performance`; they are not included.
+Python remains a runtime dependency for the wallpaper and power utilities.
+Keybindings follow upstream dwm with Super as Mod4; view the reference with Super+F1.

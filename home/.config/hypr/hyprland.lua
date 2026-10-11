@@ -21,7 +21,9 @@ hl.config({
     },
     master = {
         mfact = 0.55,
-        new_status = "slave",
+        new_status = "master",
+        new_on_top = true,
+        allow_small_split = true,
         orientation = "left",
     },
     decoration = {
@@ -53,39 +55,54 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("uwsm finalize")
 end)
 
-hl.bind("SUPER + Return", hl.dsp.exec_cmd("uwsm app -- alacritty"))
-hl.bind("SUPER + T", hl.dsp.exec_cmd("uwsm app -- alacritty"))
-hl.bind("SUPER + D", hl.dsp.exec_cmd("fuzzel"))
-hl.bind("SUPER + P", hl.dsp.exec_cmd("/home/alek/.local/bin/desktop-power-menu"))
-hl.bind("SUPER + E", hl.dsp.exec_cmd("uwsm app -- nautilus"))
-hl.bind("SUPER + Q", hl.dsp.window.close())
-hl.bind("SUPER + J", hl.dsp.layout("cyclenext"))
-hl.bind("SUPER + K", hl.dsp.layout("cycleprev"))
-hl.bind("SUPER + SHIFT + J", hl.dsp.layout("swapnext"))
-hl.bind("SUPER + SHIFT + K", hl.dsp.layout("swapprev"))
-hl.bind("SUPER + SHIFT + Return", hl.dsp.layout("swapwithmaster master"))
-hl.bind("SUPER + H", hl.dsp.window.resize({ x = -40, y = 0, relative = true }))
-hl.bind("SUPER + L", hl.dsp.window.resize({ x = 40, y = 0, relative = true }))
-hl.bind("SUPER + F", hl.dsp.window.fullscreen({ mode = "maximized" }))
-hl.bind("SUPER + SHIFT + F", hl.dsp.window.fullscreen({ mode = "fullscreen" }))
-hl.bind("SUPER + V", hl.dsp.window.float({ action = "toggle" }))
+-- Upstream dwm config.def.h, with Mod4 / SUPER and Wayland applications.
+dwm_keys = dofile("/home/alek/.config/hypr/dwm-keys.lua")
+hl.bind("SUPER + P", hl.dsp.exec_cmd("fuzzel"))
+hl.bind("SUPER + SHIFT + Return", hl.dsp.exec_cmd("uwsm app -- alacritty"))
+hl.bind("SUPER + B", hl.dsp.exec_cmd("pkill -USR1 -x waybar"))
+hl.bind("SUPER + J", function() dwm_keys.cycle(true) end)
+hl.bind("SUPER + K", function() dwm_keys.cycle(false) end)
+hl.bind("SUPER + I", function() dwm_keys.master("addmaster") end)
+hl.bind("SUPER + D", function() dwm_keys.master("removemaster") end)
+hl.bind("SUPER + H", function() dwm_keys.master("mfact -0.05") end)
+hl.bind("SUPER + L", function() dwm_keys.master("mfact +0.05") end)
+hl.bind("SUPER + Return", function() dwm_keys.master("swapwithmaster master") end)
 hl.bind("SUPER + Tab", hl.dsp.focus({ workspace = "previous" }))
+hl.bind("SUPER + SHIFT + C", hl.dsp.window.close())
+hl.bind("SUPER + T", function() dwm_keys.set_layout("master") end)
+hl.bind("SUPER + F", function() dwm_keys.set_layout("floating") end)
+hl.bind("SUPER + M", function() dwm_keys.set_layout("monocle") end)
+hl.bind("SUPER + space", function() dwm_keys.set_layout() end)
+hl.bind("SUPER + SHIFT + space", hl.dsp.window.float({ action = "toggle" }))
+-- dwm toggleview/toggletag/view-all/tag-all have no native workspace equivalent.
+hl.bind("SUPER + comma", hl.dsp.focus({ monitor = "-1" }))
+hl.bind("SUPER + period", hl.dsp.focus({ monitor = "+1" }))
+hl.bind("SUPER + SHIFT + comma", hl.dsp.window.move({ monitor = "-1", follow = false }))
+hl.bind("SUPER + SHIFT + period", hl.dsp.window.move({ monitor = "+1", follow = false }))
+hl.bind("SUPER + SHIFT + Q", hl.dsp.exec_cmd("uwsm stop"))
 for i = 1, 9 do
     hl.bind("SUPER + " .. i, hl.dsp.focus({ workspace = i }))
-    hl.bind("SUPER + SHIFT + " .. i, hl.dsp.window.move({ workspace = i }))
+    hl.bind("SUPER + SHIFT + " .. i, hl.dsp.window.move({ workspace = i, follow = false }))
 end
 
+-- Additional desktop functions, without aliases for upstream dwm bindings.
+hl.bind("SUPER + E", hl.dsp.exec_cmd("uwsm app -- nautilus"))
+hl.bind("SUPER + SHIFT + P", hl.dsp.exec_cmd("/home/alek/.local/bin/desktop-power-menu"))
+hl.bind("SUPER + SHIFT + J", hl.dsp.layout("swapnext"))
+hl.bind("SUPER + SHIFT + K", hl.dsp.layout("swapprev"))
+hl.bind("SUPER + SHIFT + F", hl.dsp.window.fullscreen({ mode = "fullscreen" }))
+hl.bind("SUPER + SHIFT + M", hl.dsp.window.fullscreen({ mode = "maximized" }))
 for key, dir in pairs({ left = "left", right = "right", up = "up", down = "down" }) do
     hl.bind("SUPER + " .. key, hl.dsp.focus({ direction = dir }))
 end
 
-hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })
-hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), { mouse = true })
+hl.bind("SUPER + mouse:272", hl.dsp.window.drag())
+hl.bind("SUPER + mouse:274", hl.dsp.window.float({ action = "toggle" }))
+hl.bind("SUPER + mouse:273", hl.dsp.window.resize())
 hl.bind("SUPER + ALT + L", hl.dsp.exec_cmd("loginctl lock-session"))
 hl.bind("SUPER + SHIFT + E", hl.dsp.exec_cmd("desktop-session-menu"))
-hl.bind("CTRL + ALT + Delete", hl.dsp.exec_cmd("desktop-session-menu"))
 hl.bind("SUPER + SHIFT + R", hl.dsp.exec_cmd("hyprctl reload"))
-hl.bind("SUPER + SHIFT + slash", hl.dsp.exec_cmd("uwsm app -- alacritty -e less /home/alek/.config/hypr/KEYS.txt"))
+hl.bind("SUPER + F1", hl.dsp.exec_cmd("uwsm app -- alacritty -e less /home/alek/.config/hypr/KEYS.txt"))
 hl.bind("SUPER + N", hl.dsp.exec_cmd("makoctl dismiss"))
 hl.bind("SUPER + SHIFT + N", hl.dsp.exec_cmd("makoctl restore"))
 hl.bind("Print", hl.dsp.exec_cmd("desktop-screenshot region"))
