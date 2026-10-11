@@ -3,6 +3,29 @@ set -eu
 umask 077
 export LANGUAGE=en LC_ALL=C.UTF-8
 
+# Software VP8 works without GPU-specific drivers or patent-restricted codecs.
+# VA-API H.264 remains an explicit per-machine option.
+encoder="${DESKTOP_RECORD_ENCODER:-software}"
+case "$encoder" in
+    software)
+        video_args=(-c libvpx -x yuv420p -p crf=10 -p b=4000000)
+        audio_codec=libopus
+        extension=webm
+        ;;
+    vaapi)
+        video_args=(-c h264_vaapi -b 0)
+        if [[ -n "${DESKTOP_RECORD_DEVICE:-}" ]]; then
+            video_args+=(-d "$DESKTOP_RECORD_DEVICE")
+        fi
+        audio_codec=aac
+        extension=mp4
+        ;;
+    *)
+        printf '%s\n' 'DESKTOP_RECORD_ENCODER must be software or vaapi.' >&2
+        exit 2
+        ;;
+esac
+
 runtime="${XDG_RUNTIME_DIR:?}/desktop-record"
 mkdir -p "$runtime"
 state="$runtime/pid"
@@ -31,9 +54,9 @@ if [[ "${1:-}" == _record ]]; then
     mapfile -t recording_options <<< "$options"
     audio_args=()
     if [[ -n "${recording_options[1]:-}" ]]; then
-        audio_args=("--audio=${recording_options[1]}" -C aac)
+        audio_args=("--audio=${recording_options[1]}" -C "$audio_codec")
     fi
-    wf-recorder -r "${recording_options[0]}" -c h264_vaapi -d /dev/dri/renderD128 -b 0 -f "$file" "${audio_args[@]}" "$@" > "$logdir/last.log" 2>&1 &
+    wf-recorder -r "${recording_options[0]}" "${video_args[@]}" -f "$file" "${audio_args[@]}" "$@" > "$logdir/last.log" 2>&1 &
     child=$!
     stamp=$(identity "$child") || stamp=''
     if [[ -n "$stamp" ]]; then
@@ -85,7 +108,7 @@ args=()
 case "${1:-region}" in
     region)
         geometry=$(slurp -b 28282880 -c a3a878 -w 2) || exit 0
-        # H.264 needs even dimensions; trim at most one pixel at each edge.
+        # YUV 4:2:0 needs even dimensions; trim at most one pixel at each edge.
         if [[ "$geometry" =~ ^(-?[0-9]+),(-?[0-9]+)\ ([0-9]+)x([0-9]+)$ ]]; then
             width=$(( ${BASH_REMATCH[3]} / 2 * 2 ))
             height=$(( ${BASH_REMATCH[4]} / 2 * 2 ))
@@ -103,7 +126,7 @@ case "${1:-region}" in
 esac
 dir="$(xdg-user-dir VIDEOS)/Recordings"
 mkdir -p "$dir"
-file="$dir/$(date +%Y-%m-%d_%H-%M-%S)-$$.mp4"
+file="$dir/$(date +%Y-%m-%d_%H-%M-%S)-$$.$extension"
 nohup "$0" _record "$file" "${args[@]}" </dev/null > "$logdir/worker.log" 2>&1 9>&- &
 worker=$!
 # Hold the launch lock until the worker publishes its encoder PID.

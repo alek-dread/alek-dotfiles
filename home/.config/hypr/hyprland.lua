@@ -1,4 +1,3 @@
-hl.monitor({ output = "DP-1", mode = "1920x1080@144", position = "0x0", scale = 1 })
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
 
 hl.config({
@@ -32,8 +31,6 @@ hl.config({
         blur = { enabled = false },
     },
     animations = { enabled = false },
-    -- Polaris: avoid damaged hardware cursor buffers after a GPU reset.
-    cursor = { no_hardware_cursors = 1 },
     input = {
         kb_layout = "us,ru",
         kb_options = "grp:alt_shift_toggle",
@@ -56,7 +53,7 @@ hl.on("hyprland.start", function()
 end)
 
 -- Upstream dwm config.def.h, with Mod4 / SUPER and Wayland applications.
-dwm_keys = dofile("/home/alek/.config/hypr/dwm-keys.lua")
+dwm_keys = dofile(os.getenv("HOME") .. "/.config/hypr/dwm-keys.lua")
 hl.bind("SUPER + P", hl.dsp.exec_cmd("fuzzel"))
 hl.bind("SUPER + SHIFT + Return", hl.dsp.exec_cmd("uwsm app -- alacritty"))
 hl.bind("SUPER + B", hl.dsp.exec_cmd("pkill -USR1 -x waybar"))
@@ -87,7 +84,7 @@ end
 
 -- Additional desktop functions, without aliases for upstream dwm bindings.
 hl.bind("SUPER + E", hl.dsp.exec_cmd("uwsm app -- nautilus"))
-hl.bind("SUPER + SHIFT + P", hl.dsp.exec_cmd("/home/alek/.local/bin/desktop-power-menu"))
+hl.bind("SUPER + SHIFT + P", hl.dsp.exec_cmd("desktop-power-menu"))
 hl.bind("SUPER + SHIFT + J", hl.dsp.layout("swapnext"))
 hl.bind("SUPER + SHIFT + K", hl.dsp.layout("swapprev"))
 hl.bind("SUPER + SHIFT + F", hl.dsp.window.fullscreen({ mode = "fullscreen" }))
@@ -102,14 +99,14 @@ hl.bind("SUPER + mouse:273", hl.dsp.window.resize())
 hl.bind("SUPER + ALT + L", hl.dsp.exec_cmd("loginctl lock-session"))
 hl.bind("SUPER + SHIFT + E", hl.dsp.exec_cmd("desktop-session-menu"))
 hl.bind("SUPER + SHIFT + R", hl.dsp.exec_cmd("hyprctl reload"))
-hl.bind("SUPER + F1", hl.dsp.exec_cmd("uwsm app -- alacritty -e less /home/alek/.config/hypr/KEYS.txt"))
+hl.bind("SUPER + F1", hl.dsp.exec_cmd("uwsm app -- alacritty -e sh -c 'less \"$HOME/.config/hypr/KEYS.txt\"'"))
 hl.bind("SUPER + N", hl.dsp.exec_cmd("makoctl dismiss"))
 hl.bind("SUPER + SHIFT + N", hl.dsp.exec_cmd("makoctl restore"))
 hl.bind("Print", hl.dsp.exec_cmd("desktop-screenshot region"))
 hl.bind("CTRL + Print", hl.dsp.exec_cmd("desktop-screenshot screen"))
-hl.bind("SUPER + Print", hl.dsp.exec_cmd("/home/alek/.local/bin/desktop-record region"))
-hl.bind("SUPER + CTRL + Print", hl.dsp.exec_cmd("/home/alek/.local/bin/desktop-record screen"))
-hl.bind("SUPER + SHIFT + Print", hl.dsp.exec_cmd("/home/alek/.local/bin/desktop-record-menu"))
+hl.bind("SUPER + Print", hl.dsp.exec_cmd("desktop-record region"))
+hl.bind("SUPER + CTRL + Print", hl.dsp.exec_cmd("desktop-record screen"))
+hl.bind("SUPER + SHIFT + Print", hl.dsp.exec_cmd("desktop-record-menu"))
 hl.bind(
     "XF86AudioRaiseVolume",
     hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"),
@@ -143,3 +140,11 @@ hl.window_rule({
     match = { class = "^(org.pulseaudio.pavucontrol|pavucontrol)$" },
     float = true,
 })
+
+-- Machine-specific overrides are optional and are preserved by the installer.
+local local_config = os.getenv("HOME") .. "/.config/hypr/local.lua"
+local local_file = io.open(local_config, "r")
+if local_file then
+    local_file:close()
+    dofile(local_config)
+end

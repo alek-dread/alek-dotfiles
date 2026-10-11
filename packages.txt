@@ -14,6 +14,7 @@ xorg-x11-server-Xwayland
 xdg-desktop-portal
 xdg-desktop-portal-hyprland
 xdg-desktop-portal-gtk
+gnome-keyring
 grim
 slurp
 wl-clipboard
@@ -34,8 +35,6 @@ fira-code-fonts
 belleve-invis-iosevka-aile-fonts
 iosevkaterm-nerd-fonts
 python3
-tuned
-lact
 util-linux
 procps-ng
 xdg-user-dirs
@@ -44,4 +43,3 @@ glib2
 wf-recorder
 jq
 pulseaudio-utils
-libva-utils

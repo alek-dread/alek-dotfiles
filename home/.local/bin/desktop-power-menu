@@ -1,86 +1,141 @@
 #!/usr/bin/python3
-"""Select the desktop's three TuneD/LACT profiles using fuzzel."""
+"""Select an existing profile from the running power management service."""
 import argparse
 import fcntl
 import os
 from pathlib import Path
+import re
+import shutil
 import subprocess
 import sys
-import time
 
-PROFILES = (
-    ('eco', 'xeon-eco', 'Power Saver', 'low'),
-    ('balanced', 'xeon-balanced', 'Balanced', 'auto'),
-    ('performance', 'xeon-performance', 'Performance', 'high'),
-)
+os.environ.update(LANGUAGE='en', LC_ALL='C.UTF-8')
+LABELS = {'power-saver': 'Power Saver', 'balanced': 'Balanced',
+          'performance': 'Performance'}
+
+
+def run(*args):
+    result = subprocess.run(args, capture_output=True, text=True, timeout=45)
+    if result.returncode:
+        raise RuntimeError((result.stderr or result.stdout).strip()
+                           or f'Command failed: {args[0]}')
+    return result.stdout.strip()
+
 
 def notify(message, error=False):
     subprocess.run(['notify-send', '--app-name=Power Modes',
                     '--urgency=' + ('critical' if error else 'normal'),
                     'Power Modes', message], check=False)
 
-def active():
-    return Path('/etc/tuned/active_profile').read_text().strip()
 
-def switch(profile):
-    _, name, label, gpu_mode = profile
-    result = subprocess.run(['tuned-adm', 'profile', name],
-                            capture_output=True, text=True, timeout=45,
-                            env={**os.environ, 'LC_ALL': 'C'})
-    if result.returncode:
-        raise RuntimeError((result.stderr or result.stdout).strip() or 'TuneD could not switch the profile.')
-    # TuneD scripts and LACT must finish before reporting success.
-    for _ in range(20):
-        gpu_paths = list(Path('/sys/class/drm').glob('card[0-9]*/device/power_dpm_force_performance_level'))
-        lact = subprocess.run(['lact', 'cli', 'profile', 'get'],
-                              capture_output=True, text=True, timeout=10,
-                              env={**os.environ, 'LC_ALL': 'C'})
-        if (active() == name and lact.returncode == 0
-                and lact.stdout.strip() == name and gpu_paths
-                and all(p.read_text().strip() == gpu_mode for p in gpu_paths)):
-            notify(label)
-            print(name)
-            return
-        time.sleep(0.25)
-    raise RuntimeError('Could not confirm the CPU and GPU profile. Check TuneD and LACT.')
+def running(name):
+    # NameHasOwner queries the bus without activating a stopped service.
+    return run('busctl', '--system', 'call', 'org.freedesktop.DBus',
+               '/org/freedesktop/DBus', 'org.freedesktop.DBus',
+               'NameHasOwner', 's', name) == 'b true'
+
+
+def backend():
+    if shutil.which('powerprofilesctl') and any(running(name) for name in (
+            'org.freedesktop.UPower.PowerProfiles', 'net.hadess.PowerProfiles')):
+        return 'powerprofilesctl'
+    if shutil.which('tuned-adm') and running('com.redhat.tuned'):
+        return 'tuned-adm'
+    raise RuntimeError('No supported power management service is running. '
+                       'Use your system\'s existing power manager; '
+                       'powerprofilesctl or TuneD is supported.')
+
+
+def active(tool):
+    if tool == 'powerprofilesctl':
+        return run(tool, 'get')
+    output = run(tool, 'active')
+    prefix = 'Current active profile:'
+    for line in output.splitlines():
+        if line.startswith(prefix):
+            return line[len(prefix):].strip()
+    if 'No current active profile' in output:
+        return ''
+    raise RuntimeError('Could not read the active TuneD profile.')
+
+
+def profiles(tool):
+    output = run(tool, 'list')
+    pattern = (r'^\s*\*?\s*([\w-]+):\s*$' if tool == 'powerprofilesctl'
+               else r'^-\s+(\S+)\s+-\s*(.*)$')
+    items = []
+    for line in output.splitlines():
+        match = re.match(pattern, line)
+        if match:
+            name = match[1]
+            label = LABELS.get(name, name) if tool == 'powerprofilesctl' else name
+            if tool == 'tuned-adm' and match[2]:
+                label += ' · ' + match[2]
+            items.append((name, label))
+    if not items:
+        raise RuntimeError('The power manager did not report any available profiles.')
+    return items
+
+
+def switch(tool, name):
+    run(tool, 'set' if tool == 'powerprofilesctl' else 'profile', name)
+    if active(tool) != name:
+        raise RuntimeError('The power manager did not confirm the selected profile.')
+    notify(LABELS.get(name, name))
+    print(name)
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--set', choices=[p[0] for p in PROFILES])
-    parser.add_argument('--status', action='store_true')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--set', metavar='PROFILE', help='select an existing profile by its exact name')
+    group.add_argument('--status', action='store_true')
+    group.add_argument('--list', action='store_true')
     args = parser.parse_args()
+    tool = backend()
     if args.status:
-        print(active())
+        print(active(tool))
         return
-    lock = open(Path(os.environ['XDG_RUNTIME_DIR']) / 'desktop-power-menu.lock', 'w')
-    try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
+    available = profiles(tool)
+    if args.list:
+        print('\n'.join(name for name, _ in available))
         return
-    if args.set:
-        profile = next(p for p in PROFILES if p[0] == args.set)
-    else:
-        current = active()
-        selected = next((i for i, p in enumerate(PROFILES) if p[1] == current), 1)
-        rows = ['● ' + p[2] if p[1] == current else '  ' + p[2] for p in PROFILES]
-        menu = subprocess.run(['fuzzel', '--dmenu', '--index', '--lines=3',
-                               '--prompt=Power mode > ', '--select-index=' + str(selected)],
-                              input='\n'.join(rows) + '\n', capture_output=True, text=True)
-        if menu.returncode:
-            if menu.returncode != 2:  # Escape / ordinary cancellation.
-                if menu.stderr.strip():
-                    print(menu.stderr.strip(), file=sys.stderr)
+    with open(Path(os.environ['XDG_RUNTIME_DIR']) / 'desktop-power-menu.lock', 'w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
             return
-        choice = menu.stdout.strip()
-        if choice not in ('0', '1', '2'):
-            return
-        profile = PROFILES[int(choice)]
-    switch(profile)
+        if args.set:
+            if args.set not in [name for name, _ in available]:
+                raise RuntimeError('Unavailable power profile: ' + args.set)
+            name = args.set
+        else:
+            current = active(tool)
+            selected = next((i for i, (name, _) in enumerate(available) if name == current), 0)
+            rows = [('● ' if name == current else '  ') + label for name, label in available]
+            menu = subprocess.run(['fuzzel', '--dmenu', '--index', '--only-match',
+                                   '--lines=' + str(min(len(rows), 12)),
+                                   '--width=80', '--prompt=Power mode > ',
+                                   '--select-index=' + str(selected)],
+                                  input='\n'.join(rows) + '\n', capture_output=True, text=True)
+            if menu.returncode:
+                if menu.returncode != 2 and menu.stderr.strip():
+                    raise RuntimeError(menu.stderr.strip())
+                return
+            choice = menu.stdout.strip()
+            if not choice.isdigit() or not 0 <= int(choice) < len(available):
+                return
+            name = available[int(choice)][0]
+        switch(tool, name)
+
 
 if __name__ == '__main__':
     try:
         main()
-    except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+    except (OSError, RuntimeError, KeyError, subprocess.TimeoutExpired) as exc:
         print(str(exc), file=sys.stderr)
-        notify(str(exc), error=True)
+        try:
+            notify(str(exc), error=True)
+        except OSError:
+            pass
         sys.exit(1)

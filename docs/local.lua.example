@@ -1,0 +1,8 @@
+-- Optional machine-specific settings. Copy to ~/.config/hypr/local.lua and edit.
+-- This file is loaded after the shared configuration and is not installed.
+
+-- Example: fixed monitor layout, resolution and refresh rate.
+-- hl.monitor({ output = "DP-1", mode = "1920x1080@144", position = "0x0", scale = 1 })
+
+-- Enable only if your GPU has hardware cursor corruption (e.g. some Polaris setups).
+-- hl.config({ cursor = { no_hardware_cursors = 1 } })
