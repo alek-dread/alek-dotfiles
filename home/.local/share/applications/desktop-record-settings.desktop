@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Screen Recorder Settings
+Comment=Choose recording audio sources and frame rate
+Exec=/home/alek/.local/bin/desktop-record-menu
+Icon=media-record
+Terminal=false
+Categories=AudioVideo;Recorder;
+Keywords=screen;record;microphone;audio;

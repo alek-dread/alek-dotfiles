@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Wallpaper
-Comment=Choose desktop and login wallpaper
+Comment=Choose desktop wallpaper
 Exec=/home/alek/.local/bin/desktop-wallpaper
 Icon=preferences-desktop-wallpaper
 Terminal=false

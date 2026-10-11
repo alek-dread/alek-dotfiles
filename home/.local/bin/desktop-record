@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+set -eu
+umask 077
+export LANGUAGE=en LC_ALL=C.UTF-8
+
+runtime="${XDG_RUNTIME_DIR:?}/desktop-record"
+mkdir -p "$runtime"
+state="$runtime/pid"
+logdir="${XDG_STATE_HOME:-$HOME/.local/state}/desktop-record"
+mkdir -p "$logdir"
+
+notice() { notify-send -a 'Screen recorder' "$@" || true; }
+identity() { awk '{print $22}' "/proc/$1/stat" 2>/dev/null; }
+active() {
+    [[ -f "$state" ]] || return 1
+    read -r pid started < "$state" || return 1
+    [[ "$pid" =~ ^[0-9]+$ && "$started" =~ ^[0-9]+$ ]] || return 1
+    [[ "$(identity "$pid")" == "$started" ]] || return 1
+    [[ "$(cat "/proc/$pid/comm" 2>/dev/null)" == wf-recorder ]]
+}
+
+# This worker lives only while recording, waits for the encoder, then exits.
+if [[ "${1:-}" == _record ]]; then
+    file=$2
+    shift 2
+    audio_state="$runtime/audio-$$.json"
+    settings_tool="$HOME/.local/bin/desktop-record-menu"
+    trap '"$settings_tool" --cleanup "$audio_state"' EXIT
+    trap 'exit 1' TERM HUP
+    options=$("$settings_tool" --prepare "$audio_state") || exit 1
+    mapfile -t recording_options <<< "$options"
+    audio_args=()
+    if [[ -n "${recording_options[1]:-}" ]]; then
+        audio_args=("--audio=${recording_options[1]}" -C aac)
+    fi
+    wf-recorder -r "${recording_options[0]}" -c h264_vaapi -d /dev/dri/renderD128 -b 0 -f "$file" "${audio_args[@]}" "$@" > "$logdir/last.log" 2>&1 &
+    child=$!
+    stamp=$(identity "$child") || stamp=''
+    if [[ -n "$stamp" ]]; then
+        printf '%s %s\n' "$child" "$stamp" > "$state.tmp"
+        mv "$state.tmp" "$state"
+    fi
+    trap 'kill -INT "$child" 2>/dev/null || true' TERM HUP
+    sleep 0.3
+    if kill -0 "$child" 2>/dev/null; then
+        notice 'Screen recording' 'Recording started. Press Super+Print to stop.'
+    fi
+    result=0
+    while true; do
+        wait "$child" && result=0 || result=$?
+        kill -0 "$child" 2>/dev/null || break
+    done
+    "$settings_tool" --cleanup "$audio_state"
+    exec 9> "$runtime/lock"
+    flock 9
+    if [[ -f "$state" ]] && [[ "$(cat "$state")" == "$child $stamp" ]]; then
+        rm -f "$state"
+    fi
+    flock -u 9
+    if [[ "$result" == 0 && -s "$file" ]]; then
+        notice 'Recording saved' "$file" 9>&-
+    else
+        [[ -s "$file" ]] || rm -f "$file"
+        notice -u critical 'Recording failed' "Details: $logdir/last.log" 9>&-
+    fi
+    exit "$result"
+fi
+
+case "${1:-region}" in region|screen|stop|status) ;; *) exit 2 ;; esac
+# Reading the atomically published PID must work even while a region is selected.
+if [[ "${1:-}" == status ]]; then
+    if active; then printf 'recording\n'; else printf 'idle\n'; fi
+    exit 0
+fi
+exec 9> "$runtime/lock"
+flock -n 9 || exit 0
+if active; then
+    kill -INT "$pid"
+    exit 0
+fi
+rm -f "$state"
+[[ "${1:-}" != stop ]] || exit 0
+
+args=()
+case "${1:-region}" in
+    region)
+        geometry=$(slurp -b 28282880 -c a3a878 -w 2) || exit 0
+        # H.264 needs even dimensions; trim at most one pixel at each edge.
+        if [[ "$geometry" =~ ^(-?[0-9]+),(-?[0-9]+)\ ([0-9]+)x([0-9]+)$ ]]; then
+            width=$(( ${BASH_REMATCH[3]} / 2 * 2 ))
+            height=$(( ${BASH_REMATCH[4]} / 2 * 2 ))
+            (( width >= 2 && height >= 2 )) || exit 0
+            geometry="${BASH_REMATCH[1]},${BASH_REMATCH[2]} ${width}x${height}"
+        else
+            exit 1
+        fi
+        args=(-g "$geometry")
+        ;;
+    screen)
+        output=$(hyprctl -j monitors | jq -er '.[] | select(.focused) | .name')
+        args=(-o "$output")
+        ;;
+esac
+dir="$(xdg-user-dir VIDEOS)/Recordings"
+mkdir -p "$dir"
+file="$dir/$(date +%Y-%m-%d_%H-%M-%S)-$$.mp4"
+nohup "$0" _record "$file" "${args[@]}" </dev/null > "$logdir/worker.log" 2>&1 9>&- &
+worker=$!
+# Hold the launch lock until the worker publishes its encoder PID.
+for ((i=0; i<500; i++)); do
+    [[ -f "$state" ]] && break
+    kill -0 "$worker" 2>/dev/null || break
+    sleep 0.02
+done

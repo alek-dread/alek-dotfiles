@@ -1,0 +1,255 @@
+#!/usr/bin/python3
+"""Fuzzel recording settings and temporary audio routing for wf-recorder."""
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import time
+
+# Keep helper tools and the audio mixer in English, regardless of session locale.
+os.environ.update(LANGUAGE='en', LC_ALL='C.UTF-8')
+
+CONFIG = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'desktop-record/settings.json'
+RECORDER = str(Path.home() / '.local/bin/desktop-record')
+MODES = {'none': 'No audio', 'mic': 'Microphone', 'system': 'System audio',
+         'both': 'Microphone + system audio'}
+DEFAULTS = dict(audio='none', microphone='', output='', fps=30)
+
+
+def run(*args):
+    result = subprocess.run(args, capture_output=True, text=True, timeout=10)
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip() or f'Command failed: {args[0]}')
+    return result.stdout.strip()
+
+
+def notify(title, text, error=False):
+    subprocess.run(['notify-send', '-a', 'Screen recorder', '-u',
+                    'critical' if error else 'normal', title, text], check=False)
+
+
+def settings():
+    value = DEFAULTS.copy()
+    if CONFIG.exists():
+        data = json.loads(CONFIG.read_text())
+        if not isinstance(data, dict):
+            raise RuntimeError('Invalid recording settings format.')
+        value.update({key: data[key] for key in value if key in data})
+    if (not isinstance(value['audio'], str) or value['audio'] not in MODES
+            or type(value['fps']) is not int or value['fps'] not in (15, 30, 60)
+            or any(not isinstance(value[k], str) or any(c in value[k] for c in '\n\r\0')
+                   for k in ('microphone', 'output'))):
+        raise RuntimeError('Invalid recording settings.')
+    return value
+
+
+def save(value):
+    CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(dir=CONFIG.parent, prefix='.settings-')
+    try:
+        with os.fdopen(fd, 'w') as file:
+            json.dump(value, file, ensure_ascii=False, indent=2)
+            file.write('\n')
+        os.replace(name, CONFIG)
+    finally:
+        Path(name).unlink(missing_ok=True)
+
+
+def devices(kind):
+    return [d for d in json.loads(run('pactl', '-f', 'json', 'list', kind))
+            if not d['name'].startswith('desktop_record_mix_')]
+
+
+def microphones():
+    return [d for d in devices('sources') if not d.get('monitor_source')]
+
+
+def label(name, items, default_kind):
+    if not name:
+        actual = run('pactl', 'get-default-' + default_kind)
+        return 'Default · ' + next((d['description'] for d in items if d['name'] == actual), actual)
+    return next((d['description'] for d in items if d['name'] == name), 'Unavailable: ' + name)
+
+
+def choose(prompt, rows, selected=0):
+    result = subprocess.run(['fuzzel', '--dmenu', '--index', '--only-match',
+                             '--width=64', f'--lines={min(len(rows), 9)}',
+                             f'--select-index={selected}', '--prompt=' + prompt + ' > '],
+                            input='\n'.join(rows) + '\n', text=True, capture_output=True)
+    if result.returncode:
+        if result.returncode != 2 and result.stderr.strip():
+            raise RuntimeError(result.stderr.strip())
+        return None
+    try:
+        index = int(result.stdout.strip())
+    except ValueError:
+        return None
+    return index if 0 <= index < len(rows) else None
+
+
+def modules():
+    # This pactl version omits module indices from JSON; short output has them.
+    entries = {}
+    for line in run('pactl', 'list', 'short', 'modules').splitlines():
+        fields = line.split('\t')
+        if len(fields) >= 2 and fields[0].isdigit() and fields[1].startswith('module-'):
+            entries[fields[0]] = dict(id=fields[0], name=fields[1],
+                                      argument=fields[2] if len(fields) > 2 else '')
+    return entries
+
+
+def cleanup(path):
+    if not path.exists():
+        return
+    saved = json.loads(path.read_text())
+    current = modules()
+    for entry in reversed(saved):
+        module = current.get(entry['id'])
+        # Check identity as module indices can be reused after a server restart.
+        if module and module['name'] == entry['name'] and module['argument'] == entry['argument']:
+            run('pactl', 'unload-module', entry['id'])
+    path.unlink(missing_ok=True)
+
+
+def prepare(path):
+    config = settings()
+    source = ''
+    loaded = []
+
+    def load(name, *args):
+        module_id = run('pactl', 'load-module', name, *args)
+        module = modules()[module_id]
+        loaded.append(module)
+        path.write_text(json.dumps(loaded))
+
+    try:
+        mode = config['audio']
+        mic = None
+        monitor = None
+        if mode in ('mic', 'both'):
+            name = config['microphone'] or run('pactl', 'get-default-source')
+            mic = next((d for d in microphones() if d['name'] == name), None)
+            if mic is None:
+                raise RuntimeError('The selected microphone is unavailable. Open recording settings.')
+            if mic.get('mute'):
+                notify('Microphone muted', 'Microphone audio will be silent. Check the audio mixer.')
+        if mode in ('system', 'both'):
+            name = config['output'] or run('pactl', 'get-default-sink')
+            output = next((d for d in devices('sinks') if d['name'] == name), None)
+            if output is None:
+                raise RuntimeError('The selected audio output is unavailable. Open recording settings.')
+            monitor = output.get('monitor_source_name') or output['monitor_source']
+        if mode == 'mic':
+            source = mic['name']
+        elif mode == 'system':
+            source = monitor
+        elif mode == 'both':
+            sink = f'desktop_record_mix_{os.getppid()}'
+            load('module-null-sink', 'sink_name=' + sink, 'rate=48000', 'channels=2',
+                 'sink_properties="device.description=Screen_Record node.virtual=true priority.session=0"')
+            for name in (mic['name'], monitor):
+                load('module-loopback', 'source=' + name, 'sink=' + sink,
+                     'source_dont_move=true', 'sink_dont_move=true', 'latency_msec=30')
+            source = sink + '.monitor'
+            # Wait for the new monitor to appear before launching the recorder.
+            for _ in range(20):
+                if source in [d['name'] for d in json.loads(run('pactl', '-f', 'json', 'list', 'sources'))]:
+                    break
+                time.sleep(0.05)
+            else:
+                raise RuntimeError('Could not create the mixed audio source.')
+        print(config['fps'])
+        print(source)
+    except Exception:
+        cleanup(path)
+        raise
+
+
+def menu():
+    lock = open(Path(os.environ['XDG_RUNTIME_DIR']) / 'desktop-record-menu.lock', 'w')
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return
+    config = settings()
+    while True:
+        recording = run(RECORDER, 'status') == 'recording'
+        rows = ['Audio: ' + MODES[config['audio']],
+                'Microphone: ' + label(config['microphone'], microphones(), 'source'),
+                'System audio: ' + label(config['output'], devices('sinks'), 'sink'),
+                'Frame rate: ' + str(config['fps']) + ' FPS',
+                'Record region', 'Record monitor',
+                'Stop recording' if recording else 'Open recordings folder',
+                'Audio mixer', 'Close']
+        selected = choose('Recording · changes apply next time' if recording else 'Screen recording', rows)
+        if selected is None or selected == 8:
+            return
+        if selected == 0:
+            keys = list(MODES)
+            choice = choose('Audio source', [MODES[k] for k in keys], keys.index(config['audio']))
+            if choice is not None:
+                config['audio'] = keys[choice]
+        elif selected in (1, 2):
+            key = 'microphone' if selected == 1 else 'output'
+            items = microphones() if selected == 1 else devices('sinks')
+            names = [''] + [d['name'] for d in items]
+            choice = choose('Microphone' if selected == 1 else 'System audio output',
+                            [label('', items, 'source' if selected == 1 else 'sink')]
+                            + [d['description'] for d in items],
+                            names.index(config[key]) if config[key] in names else 0)
+            if choice is not None:
+                config[key] = names[choice]
+        elif selected == 3:
+            rates = [15, 30, 60]
+            choice = choose('Frame rate', [f'{r} FPS' for r in rates], rates.index(config['fps']))
+            if choice is not None:
+                config['fps'] = rates[choice]
+        elif selected in (4, 5):
+            if recording:
+                notify('Recording in progress', 'Stop the current recording first.')
+            else:
+                subprocess.Popen([RECORDER, 'region' if selected == 4 else 'screen'],
+                                 start_new_session=True)
+                return
+        elif selected == 6:
+            if recording:
+                run(RECORDER, 'stop')
+                return
+            folder = Path(run('xdg-user-dir', 'VIDEOS')) / 'Recordings'
+            folder.mkdir(parents=True, exist_ok=True)
+            subprocess.Popen(['xdg-open', str(folder)], start_new_session=True)
+            return
+        elif selected == 7:
+            subprocess.Popen(['pavucontrol'], start_new_session=True)
+            return
+        if selected <= 3:
+            save(config)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--prepare', type=Path)
+    group.add_argument('--cleanup', type=Path)
+    group.add_argument('--show', action='store_true')
+    args = parser.parse_args()
+    if args.prepare:
+        prepare(args.prepare)
+    elif args.cleanup:
+        cleanup(args.cleanup)
+    elif args.show:
+        print(json.dumps(settings(), ensure_ascii=False, indent=2))
+    else:
+        menu()
+
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        main()
+    except (OSError, RuntimeError, ValueError, StopIteration, subprocess.TimeoutExpired) as error:
+        notify('Recording settings error', str(error), error=True)
+        raise SystemExit(1)

@@ -107,6 +107,9 @@ hl.bind("SUPER + N", hl.dsp.exec_cmd("makoctl dismiss"))
 hl.bind("SUPER + SHIFT + N", hl.dsp.exec_cmd("makoctl restore"))
 hl.bind("Print", hl.dsp.exec_cmd("desktop-screenshot region"))
 hl.bind("CTRL + Print", hl.dsp.exec_cmd("desktop-screenshot screen"))
+hl.bind("SUPER + Print", hl.dsp.exec_cmd("/home/alek/.local/bin/desktop-record region"))
+hl.bind("SUPER + CTRL + Print", hl.dsp.exec_cmd("/home/alek/.local/bin/desktop-record screen"))
+hl.bind("SUPER + SHIFT + Print", hl.dsp.exec_cmd("/home/alek/.local/bin/desktop-record-menu"))
 hl.bind(
     "XF86AudioRaiseVolume",
     hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"),

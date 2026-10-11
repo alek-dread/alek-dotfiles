@@ -39,6 +39,11 @@ Super+Shift+R            Reload configuration
 Super+F1                 Show this reference
 Print                    Screenshot region; save and copy
 Ctrl+Print               Screenshot all displays; save and copy
+Super+Print              Record region / stop current recording
+Super+Ctrl+Print         Record focused monitor / stop current recording
+Super+Shift+Print        Recording settings (Fuzzel): audio, devices, FPS
+                         MP4, H.264 GPU encoding; default 30 fps, no audio
+                         Saved to ~/Videos/Recordings; Esc cancels selection
 Alt+Shift                Switch US / RU keyboard layout
 Media keys               Volume, mute, microphone and playback
 
