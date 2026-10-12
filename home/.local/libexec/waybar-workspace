@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 from pathlib import Path
-import select
 import socket
 import subprocess
 import sys
@@ -28,9 +27,7 @@ def query(command):
     return json.loads(b"".join(chunks))
 
 
-def status(number, urgent=False):
-    workspaces = query("j/workspaces")
-    active = query("j/activeworkspace")["id"]
+def render(number, workspaces, active, urgent=False):
     occupied = any(w["id"] == number and w["windows"] > 0 for w in workspaces)
     classes = ["workspace", "occupied" if occupied else "empty"]
     if active == number:
@@ -40,20 +37,32 @@ def status(number, urgent=False):
     return json.dumps({"text": str(number), "class": classes})
 
 
+def status(number):
+    return render(number, query("j/workspaces"), query("j/activeworkspace")["id"])
+
+
 def watch(number):
     previous = None
     urgent = False
-    events = {"workspacev2", "focusedmonv2", "createworkspacev2",
-              "destroyworkspacev2", "moveworkspacev2", "openwindow",
-              "closewindow", "movewindowv2", "configreloaded", "urgent"}
+    window_events = {"createworkspacev2", "destroyworkspacev2", "moveworkspacev2",
+                     "openwindow", "closewindow", "movewindowv2"}
+
+    def publish(workspaces, active):
+        nonlocal previous, urgent
+        if active == number:
+            urgent = False
+        current = render(number, workspaces, active, urgent)
+        if current != previous:
+            print(current, flush=True)
+            previous = current
+
     while True:
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.connect(ipc_path(".socket2.sock"))
-                current = status(number)
-                if current != previous:
-                    print(current, flush=True)
-                    previous = current
+                workspaces = query("j/workspaces")
+                active = query("j/activeworkspace")["id"]
+                publish(workspaces, active)
                 pending = b""
                 while True:
                     data = connection.recv(65536)
@@ -62,31 +71,35 @@ def watch(number):
                     pending += data
                     lines = pending.split(b"\n")
                     pending = lines.pop()
-                    if not any(line.split(b">>", 1)[0].decode() in events for line in lines):
-                        continue
-                    # Coalesce related window/workspace notifications.
-                    while select.select([connection], [], [], 0.05)[0]:
-                        data = connection.recv(65536)
-                        if not data:
-                            raise ConnectionError("Hyprland event socket closed")
-                        pending += data
-                        complete = pending.split(b"\n")
-                        pending = complete.pop()
-                        lines.extend(complete)
+                    refresh_windows = False
+                    refresh_active = False
                     for line in lines:
-                        if line.startswith(b"urgent>>"):
-                            address = line.split(b">>", 1)[1].decode().removeprefix("0x")
+                        event, separator, payload = line.decode().partition(">>")
+                        if not separator:
+                            continue
+                        if event == "workspacev2":
+                            active = int(payload.split(",", 1)[0])
+                            # Focus feedback must not wait for window-count IPC.
+                            publish(workspaces, active)
+                        elif event == "focusedmonv2":
+                            active = int(payload.split(",", 1)[1])
+                            publish(workspaces, active)
+                        elif event in window_events:
+                            refresh_windows = True
+                        elif event == "configreloaded":
+                            refresh_windows = refresh_active = True
+                        elif event == "urgent":
+                            address = payload.removeprefix("0x")
                             clients = query("j/clients")
                             urgent |= any(
                                 c["address"].removeprefix("0x") == address
                                 and c["workspace"]["id"] == number for c in clients
                             )
-                    current = status(number, urgent)
-                    if "active" in json.loads(current)["class"]:
-                        urgent = False
-                    if current != previous:
-                        print(current, flush=True)
-                        previous = current
+                    if refresh_windows:
+                        workspaces = query("j/workspaces")
+                    if refresh_active:
+                        active = query("j/activeworkspace")["id"]
+                    publish(workspaces, active)
         except (OSError, ValueError, KeyError, ConnectionError) as error:
             print(f"Workspace status unavailable: {error}", file=sys.stderr)
             time.sleep(2)
