@@ -1,0 +1,115 @@
+#!/usr/bin/python3
+"""Clickable Waybar workspaces for Hyprland's Lua dispatch API."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import select
+import socket
+import subprocess
+import sys
+import time
+
+
+def ipc_path(name):
+    return str(Path(os.environ["XDG_RUNTIME_DIR"]) / "hypr" /
+               os.environ["HYPRLAND_INSTANCE_SIGNATURE"] / name)
+
+
+def query(command):
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+        connection.settimeout(2)
+        connection.connect(ipc_path(".socket.sock"))
+        connection.sendall(command.encode())
+        chunks = []
+        while data := connection.recv(65536):
+            chunks.append(data)
+    return json.loads(b"".join(chunks))
+
+
+def status(number, urgent=False):
+    workspaces = query("j/workspaces")
+    active = query("j/activeworkspace")["id"]
+    occupied = any(w["id"] == number and w["windows"] > 0 for w in workspaces)
+    classes = ["workspace", "occupied" if occupied else "empty"]
+    if active == number:
+        classes.append("active")
+    elif urgent:
+        classes.append("urgent")
+    return json.dumps({"text": str(number), "class": classes})
+
+
+def watch(number):
+    previous = None
+    urgent = False
+    events = {"workspacev2", "focusedmonv2", "createworkspacev2",
+              "destroyworkspacev2", "moveworkspacev2", "openwindow",
+              "closewindow", "movewindowv2", "configreloaded", "urgent"}
+    while True:
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.connect(ipc_path(".socket2.sock"))
+                current = status(number)
+                if current != previous:
+                    print(current, flush=True)
+                    previous = current
+                pending = b""
+                while True:
+                    data = connection.recv(65536)
+                    if not data:
+                        raise ConnectionError("Hyprland event socket closed")
+                    pending += data
+                    lines = pending.split(b"\n")
+                    pending = lines.pop()
+                    if not any(line.split(b">>", 1)[0].decode() in events for line in lines):
+                        continue
+                    # Coalesce related window/workspace notifications.
+                    while select.select([connection], [], [], 0.05)[0]:
+                        data = connection.recv(65536)
+                        if not data:
+                            raise ConnectionError("Hyprland event socket closed")
+                        pending += data
+                        complete = pending.split(b"\n")
+                        pending = complete.pop()
+                        lines.extend(complete)
+                    for line in lines:
+                        if line.startswith(b"urgent>>"):
+                            address = line.split(b">>", 1)[1].decode().removeprefix("0x")
+                            clients = query("j/clients")
+                            urgent |= any(
+                                c["address"].removeprefix("0x") == address
+                                and c["workspace"]["id"] == number for c in clients
+                            )
+                    current = status(number, urgent)
+                    if "active" in json.loads(current)["class"]:
+                        urgent = False
+                    if current != previous:
+                        print(current, flush=True)
+                        previous = current
+        except (OSError, ValueError, KeyError, ConnectionError) as error:
+            print(f"Workspace status unavailable: {error}", file=sys.stderr)
+            time.sleep(2)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=("watch", "status", "focus"))
+    parser.add_argument("workspace", type=int, choices=range(1, 10))
+    args = parser.parse_args()
+    if args.action == "focus":
+        return subprocess.call([
+            "hyprctl", "dispatch", f"hl.dsp.focus({{ workspace = {args.workspace} }})"
+        ])
+    if args.action == "status":
+        print(status(args.workspace))
+    else:
+        watch(args.workspace)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except BrokenPipeError:
+        sys.exit(0)

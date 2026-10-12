@@ -4,7 +4,7 @@
     "height": 24,
     "spacing": 0,
     "modules-left": [
-        "hyprland/workspaces"
+        "group/workspaces"
     ],
     "modules-center": [
         "hyprland/window"
@@ -16,24 +16,6 @@
         "network",
         "clock"
     ],
-    "hyprland/workspaces": {
-        "format": "{id}",
-        "all-outputs": false,
-        "disable-scroll": true,
-        "persistent-workspaces": {
-            "*": [
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                9
-            ]
-        }
-    },
     "hyprland/window": {
         "format": "{title}",
         "max-length": 70,
@@ -68,5 +50,91 @@
     "clock": {
         "format": "{:%a %d %b  %H:%M}",
         "tooltip-format": "{:%Y-%m-%d}"
+    },
+    "group/workspaces": {
+        "orientation": "horizontal",
+        "modules": [
+            "custom/workspace-1",
+            "custom/workspace-2",
+            "custom/workspace-3",
+            "custom/workspace-4",
+            "custom/workspace-5",
+            "custom/workspace-6",
+            "custom/workspace-7",
+            "custom/workspace-8",
+            "custom/workspace-9"
+        ]
+    },
+    "custom/workspace-1": {
+        "exec": "/home/alek/.local/libexec/waybar-workspace watch 1",
+        "return-type": "json",
+        "format": "{text}",
+        "tooltip": false,
+        "exec-on-event": false,
+        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 1"
+    },
+    "custom/workspace-2": {
+        "exec": "/home/alek/.local/libexec/waybar-workspace watch 2",
+        "return-type": "json",
+        "format": "{text}",
+        "tooltip": false,
+        "exec-on-event": false,
+        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 2"
+    },
+    "custom/workspace-3": {
+        "exec": "/home/alek/.local/libexec/waybar-workspace watch 3",
+        "return-type": "json",
+        "format": "{text}",
+        "tooltip": false,
+        "exec-on-event": false,
+        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 3"
+    },
+    "custom/workspace-4": {
+        "exec": "/home/alek/.local/libexec/waybar-workspace watch 4",
+        "return-type": "json",
+        "format": "{text}",
+        "tooltip": false,
+        "exec-on-event": false,
+        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 4"
+    },
+    "custom/workspace-5": {
+        "exec": "/home/alek/.local/libexec/waybar-workspace watch 5",
+        "return-type": "json",
+        "format": "{text}",
+        "tooltip": false,
+        "exec-on-event": false,
+        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 5"
+    },
+    "custom/workspace-6": {
+        "exec": "/home/alek/.local/libexec/waybar-workspace watch 6",
+        "return-type": "json",
+        "format": "{text}",
+        "tooltip": false,
+        "exec-on-event": false,
+        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 6"
+    },
+    "custom/workspace-7": {
+        "exec": "/home/alek/.local/libexec/waybar-workspace watch 7",
+        "return-type": "json",
+        "format": "{text}",
+        "tooltip": false,
+        "exec-on-event": false,
+        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 7"
+    },
+    "custom/workspace-8": {
+        "exec": "/home/alek/.local/libexec/waybar-workspace watch 8",
+        "return-type": "json",
+        "format": "{text}",
+        "tooltip": false,
+        "exec-on-event": false,
+        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 8"
+    },
+    "custom/workspace-9": {
+        "exec": "/home/alek/.local/libexec/waybar-workspace watch 9",
+        "return-type": "json",
+        "format": "{text}",
+        "tooltip": false,
+        "exec-on-event": false,
+        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 9"
     }
 }

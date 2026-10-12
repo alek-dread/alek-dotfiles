@@ -53,6 +53,20 @@ The US/RU keyboard layout and Alt+Shift switching remain desktop preferences;
 override `input` in `local.lua` if your keyboard needs different settings.
 Keybindings follow upstream dwm with Super as Mod4. Open the reference with Super+F1.
 
+## Appearance and workspaces
+
+The muted Gruvbox palette uses a gray turquoise accent (`#8caaa0`), with a
+turquoise-to-mauve (`#b3919e`) active window border at 45 degrees. The accent
+also appears in Waybar, Fuzzel, Mako, Hyprlock and capture region selection.
+
+Waybar shows nine workspaces that switch with a left mouse click. A small
+outline square in the upper-left corner marks a workspace with windows; the
+current occupied workspace has a filled square. Empty workspaces have no square.
+The workspace helper uses Hyprland's Lua dispatch API and listens to compositor
+events, so it works with releases that no longer accept the legacy workspace
+dispatch command. Python and the two SVG indicators are included in the
+installation; no additional service is needed.
+
 ## Existing power profiles
 
 Super+Shift+P opens the power menu. It uses `powerprofilesctl` when a compatible
