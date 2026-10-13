@@ -1,53 +1,103 @@
 #!/usr/bin/python3
-"""Choose a persistent desktop wallpaper for swaybg."""
+"""Validate an image, atomically select it, and roll back a failed swaybg start."""
+import fcntl
 import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
-current = Path.home() / '.local/share/wallpapers/current'
-service = r'app-hyprland\x2dbackground@autostart.service'
-english_env = {**os.environ, 'LC_ALL': 'en_US.UTF-8', 'LANGUAGE': 'en'}
+CURRENT = Path.home() / '.local/share/wallpapers/current'
+SERVICE = r'app-hyprland\x2dbackground@autostart.service'
+ENGLISH = {**os.environ, 'LC_ALL': 'C.UTF-8', 'LANGUAGE': 'en'}
+
 
 def fail(message):
     print(message, file=sys.stderr)
     if len(sys.argv) == 1:
-        subprocess.run(['zenity', '--error', '--title=Wallpaper', '--text=' + message], env=english_env)
-    sys.exit(1)
+        try:
+            subprocess.run(['zenity', '--error', '--no-markup', '--title=Wallpaper', '--text=' + message],
+                           env=ENGLISH, timeout=60)
+        except (OSError, subprocess.SubprocessError):
+            pass
+    raise SystemExit(1)
 
-if sys.argv[1:] == ['--help']:
-    print('desktop-wallpaper [IMAGE]\nWithout arguments: choose an image.\n--show: current image path.')
-    sys.exit(0)
-if sys.argv[1:] == ['--show']:
-    print(current.resolve())
-    sys.exit(0)
-if len(sys.argv) > 2:
-    fail('Usage: desktop-wallpaper [IMAGE]')
-if len(sys.argv) == 1:
-    choice = subprocess.run(['zenity', '--file-selection', '--title=Wallpaper',
-        '--filename=' + str(Path.home() / 'Pictures') + '/',
-        '--file-filter=Images | *.jpg *.jpeg *.png *.webp *.JPG *.JPEG *.PNG *.WEBP'],
-        capture_output=True, text=True, env=english_env)
-    if choice.returncode:
-        sys.exit(0)
-    filename = choice.stdout.rstrip('\n')
-else:
-    filename = sys.argv[1]
-image = Path(filename).expanduser().resolve()
-if not image.is_file() or not os.access(image, os.R_OK):
-    fail(f'Cannot read image: {image}')
-previous = os.readlink(current) if current.is_symlink() else None
-temporary = current.with_name(f'.current-{os.getpid()}')
-try:
-    current.parent.mkdir(parents=True, exist_ok=True)
-    temporary.symlink_to(image)
-    temporary.replace(current)
-    subprocess.run(['systemctl', '--user', 'restart', service], check=True)
-except Exception as error:
-    temporary.unlink(missing_ok=True)
-    if previous is not None:
-        temporary.symlink_to(previous)
-        temporary.replace(current)
-        subprocess.run(['systemctl', '--user', 'restart', service])
-    fail(f'Cannot apply wallpaper: {error}')
-print(f'Wallpaper: {image}')
+
+def replace_link(image):
+    temporary = CURRENT.with_name(f'.current-{os.getpid()}')
+    try:
+        temporary.symlink_to(image)
+        temporary.replace(CURRENT)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def restart():
+    subprocess.run(['systemctl', '--user', 'restart', SERVICE], check=True, timeout=15)
+    # Type=exec can report success before swaybg discovers a decode/display error.
+    for _ in range(3):
+        time.sleep(.1)
+        status = subprocess.run(['systemctl', '--user', 'show', SERVICE,
+                                 '-p', 'ActiveState', '--value'], capture_output=True,
+                                text=True, timeout=5, check=True)
+        if status.stdout.strip() != 'active':
+            raise RuntimeError('The wallpaper service did not stay active.')
+
+
+def main():
+    if sys.argv[1:] == ['--help']:
+        print('desktop-wallpaper [IMAGE]\nWithout arguments: choose an image.\n--show: current image path.')
+        return
+    if sys.argv[1:] == ['--show']:
+        print(CURRENT.resolve())
+        return
+    if len(sys.argv) > 2:
+        fail('Usage: desktop-wallpaper [IMAGE]')
+    if len(sys.argv) == 1:
+        choice = subprocess.run(['zenity', '--file-selection', '--title=Wallpaper',
+                                 '--filename=' + str(Path.home() / 'Pictures') + '/',
+                                 '--file-filter=Images | *.jpg *.jpeg *.png *.webp *.JPG *.JPEG *.PNG *.WEBP'],
+                                capture_output=True, text=True, env=ENGLISH)
+        if choice.returncode:
+            return
+        filename = choice.stdout.rstrip('\n')
+    else:
+        filename = sys.argv[1]
+    image = Path(filename).expanduser().resolve()
+    if not image.is_file() or not os.access(image, os.R_OK):
+        fail(f'Cannot read image: {image}')
+    # Full decoder validation before changing the user's pointer or running service.
+    import gi
+    gi.require_version('GdkPixbuf', '2.0')
+    from gi.repository import GdkPixbuf, GLib
+    try:
+        GdkPixbuf.Pixbuf.new_from_file(str(image))
+    except GLib.Error:
+        fail(f'Not a supported, readable image: {image}')
+    with open(Path(os.environ['XDG_RUNTIME_DIR']) / 'desktop-wallpaper.lock', 'w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if CURRENT.exists() and not CURRENT.is_symlink():
+            fail('The wallpaper pointer is a regular file; it was preserved. Move it before selecting a new wallpaper.')
+        previous = os.readlink(CURRENT) if CURRENT.is_symlink() else None
+        CURRENT.parent.mkdir(parents=True, exist_ok=True)
+        replace_link(image)
+        try:
+            restart()
+        except Exception as error:
+            if previous is None:
+                CURRENT.unlink(missing_ok=True)
+            else:
+                replace_link(previous)
+                try:
+                    restart()
+                except Exception as rollback:
+                    fail(f'Wallpaper selection restored, but its service needs attention: {rollback}')
+            fail(f'Cannot apply wallpaper: {error}')
+    print(f'Wallpaper: {image}')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, subprocess.SubprocessError) as error:
+        fail(f'Cannot apply wallpaper: {error}')

@@ -1,10 +1,10 @@
 #!/usr/bin/python3
-"""Clickable Waybar workspaces for Hyprland's Lua dispatch API."""
-
+"""Hyprland workspace state: one event stream, Waybar's native update signals."""
 import argparse
 import json
 import os
 from pathlib import Path
+import signal
 import socket
 import subprocess
 import sys
@@ -12,116 +12,189 @@ import time
 
 
 def ipc_path(name):
-    return str(Path(os.environ["XDG_RUNTIME_DIR"]) / "hypr" /
-               os.environ["HYPRLAND_INSTANCE_SIGNATURE"] / name)
+    return str(Path(os.environ['XDG_RUNTIME_DIR']) / 'hypr' /
+               os.environ['HYPRLAND_INSTANCE_SIGNATURE'] / name)
 
 
 def query(command):
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
         connection.settimeout(2)
-        connection.connect(ipc_path(".socket.sock"))
+        connection.connect(ipc_path('.socket.sock'))
         connection.sendall(command.encode())
         chunks = []
         while data := connection.recv(65536):
             chunks.append(data)
-    return json.loads(b"".join(chunks))
+    return json.loads(b''.join(chunks))
 
 
 def render(number, workspaces, active, urgent=False):
-    occupied = any(w["id"] == number and w["windows"] > 0 for w in workspaces)
-    classes = ["workspace", "occupied" if occupied else "empty"]
+    occupied = any(w['id'] == number and w['windows'] > 0 for w in workspaces)
+    classes = ['workspace', 'occupied' if occupied else 'empty']
     if active == number:
-        classes.append("active")
+        classes.append('active')
     elif urgent:
-        classes.append("urgent")
-    return json.dumps({"text": str(number), "class": classes})
+        classes.append('urgent')
+    return json.dumps({'text': str(number), 'class': classes})
 
 
 def status(number):
-    return render(number, query("j/workspaces"), query("j/activeworkspace")["id"])
+    return render(number, query('j/workspaces'), query('j/activeworkspace')['id'])
 
 
-def watch(number):
-    previous = None
-    urgent = False
-    window_events = {"createworkspacev2", "destroyworkspacev2", "moveworkspacev2",
-                     "openwindow", "closewindow", "movewindowv2"}
+class State:
+    def __init__(self):
+        self.workspaces = []
+        self.active = None
+        self.urgent = {}
 
-    def publish(workspaces, active):
-        nonlocal previous, urgent
-        if active == number:
-            urgent = False
-        current = render(number, workspaces, active, urgent)
-        if current != previous:
-            print(current, flush=True)
-            previous = current
+    def snapshot(self):
+        self.workspaces = query('j/workspaces')
+        self.active = query('j/activeworkspace')['id']
+        clients = query('j/clients')
+        self.urgent = {c['address'].removeprefix('0x'): c['workspace']['id']
+                       for c in clients if c.get('urgent')}
 
+    def output(self):
+        self.urgent = {address: workspace for address, workspace in self.urgent.items()
+                       if workspace != self.active}
+        return {n: render(n, self.workspaces, self.active, n in self.urgent.values())
+                for n in range(1, 10)}
+
+    def event(self, name, payload):
+        """Return whether window counts must be refreshed after this event batch."""
+        if name == 'workspacev2':
+            self.active = int(payload.split(',', 1)[0])
+        elif name == 'focusedmonv2':
+            self.active = int(payload.rsplit(',', 1)[1])
+        elif name == 'urgent':
+            address = payload.removeprefix('0x')
+            for client in query('j/clients'):
+                if client['address'].removeprefix('0x') == address:
+                    self.urgent[address] = client['workspace']['id']
+                    break
+        elif name == 'closewindow':
+            self.urgent.pop(payload.removeprefix('0x'), None)
+        elif name == 'movewindowv2':
+            address, workspace, *_ = payload.split(',')
+            if address.removeprefix('0x') in self.urgent:
+                self.urgent[address.removeprefix('0x')] = int(workspace)
+        elif name == 'configreloaded':
+            self.snapshot()
+        return name in {'createworkspacev2', 'destroyworkspacev2', 'moveworkspacev2',
+                        'openwindow', 'closewindow', 'movewindowv2'}
+
+
+def events(publish):
     while True:
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-                connection.connect(ipc_path(".socket2.sock"))
-                workspaces = query("j/workspaces")
-                active = query("j/activeworkspace")["id"]
-                publish(workspaces, active)
-                pending = b""
+                connection.connect(ipc_path('.socket2.sock'))
+                state = State()
+                state.snapshot()
+                publish(state.output())
+                pending = b''
                 while True:
                     data = connection.recv(65536)
                     if not data:
-                        raise ConnectionError("Hyprland event socket closed")
+                        raise ConnectionError('Hyprland event socket closed')
                     pending += data
-                    lines = pending.split(b"\n")
+                    lines = pending.split(b'\n')
                     pending = lines.pop()
-                    refresh_windows = False
-                    refresh_active = False
+                    refresh = False
                     for line in lines:
-                        event, separator, payload = line.decode().partition(">>")
+                        name, separator, payload = line.decode().partition('>>')
                         if not separator:
                             continue
-                        if event == "workspacev2":
-                            active = int(payload.split(",", 1)[0])
-                            # Focus feedback must not wait for window-count IPC.
-                            publish(workspaces, active)
-                        elif event == "focusedmonv2":
-                            active = int(payload.split(",", 1)[1])
-                            publish(workspaces, active)
-                        elif event in window_events:
-                            refresh_windows = True
-                        elif event == "configreloaded":
-                            refresh_windows = refresh_active = True
-                        elif event == "urgent":
-                            address = payload.removeprefix("0x")
-                            clients = query("j/clients")
-                            urgent |= any(
-                                c["address"].removeprefix("0x") == address
-                                and c["workspace"]["id"] == number for c in clients
-                            )
-                    if refresh_windows:
-                        workspaces = query("j/workspaces")
-                    if refresh_active:
-                        active = query("j/activeworkspace")["id"]
-                    publish(workspaces, active)
-        except (OSError, ValueError, KeyError, ConnectionError) as error:
-            print(f"Workspace status unavailable: {error}", file=sys.stderr)
+                        try:
+                            refresh |= state.event(name, payload)
+                        except (ValueError, KeyError, TypeError):
+                            print('Malformed workspace event ignored.', file=sys.stderr)
+                            continue
+                        # Focus must be published before any window-count query.
+                        if name in {'workspacev2', 'focusedmonv2', 'urgent'}:
+                            publish(state.output())
+                    if refresh:
+                        state.workspaces = query('j/workspaces')
+                    publish(state.output())
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(f'Workspace status unavailable: {error}', file=sys.stderr)
+            publish({n: json.dumps({'text': str(n), 'class': ['workspace', 'unavailable']})
+                     for n in range(1, 10)})
             time.sleep(2)
+
+
+def process_start(pid):
+    # comm can contain spaces; fields after the closing parenthesis start at #3.
+    return Path(f'/proc/{pid}/stat').read_text().rsplit(') ', 1)[1].split()[19]
+
+
+class Publisher:
+    def __init__(self, directory):
+        self.directory = directory
+        self.previous = {}
+        self.ready = False
+
+    def notify(self, numbers):
+        try:
+            pid, start = (self.directory / 'bar.pid').read_text().split()
+            pid = int(pid)
+            if pid <= 1 or process_start(pid) != start:
+                return
+            if Path(f'/proc/{pid}/comm').read_text().strip() != 'waybar':
+                return
+            for number in numbers:
+                os.kill(pid, signal.SIGRTMIN + number)
+        except (OSError, ValueError, IndexError):
+            pass  # The wrapper owns/restarts the bar; never signal a reused PID.
+
+    def publish(self, output):
+        changed = []
+        for number, value in output.items():
+            if self.previous.get(number) == value:
+                continue
+            target = self.directory / f'{number}.json'
+            temporary = target.with_suffix('.tmp')
+            temporary.write_text(value + '\n')
+            temporary.replace(target)
+            self.previous[number] = value
+            changed.append(number)
+        if changed:
+            self.notify(changed)
+        if not self.ready:
+            (self.directory / 'ready').touch()
+            self.ready = True
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("watch", "status", "focus"))
-    parser.add_argument("workspace", type=int, choices=range(1, 10))
+    parser.add_argument('action', choices=('serve', 'watch', 'status', 'focus'))
+    parser.add_argument('workspace', type=int, choices=range(1, 10), nargs='?')
     args = parser.parse_args()
-    if args.action == "focus":
-        return subprocess.call([
-            "hyprctl", "dispatch", f"hl.dsp.focus({{ workspace = {args.workspace} }})"
-        ])
-    if args.action == "status":
+    if args.action == 'serve':
+        if args.workspace is not None:
+            parser.error('serve does not take a workspace number')
+        os.umask(0o077)
+        events(Publisher(Path(os.environ['WAYBAR_WORKSPACE_DIR'])).publish)
+    elif args.workspace is None:
+        parser.error('a workspace number is required')
+    elif args.action == 'focus':
+        return subprocess.call(['hyprctl', 'dispatch',
+                                f'hl.dsp.focus({{ workspace = {args.workspace} }})'])
+    elif args.action == 'status':
         print(status(args.workspace))
     else:
-        watch(args.workspace)
+        previous = None
+        def publish(output):
+            nonlocal previous
+            value = output[args.workspace]
+            if value != previous:
+                print(value, flush=True)
+                previous = value
+        events(publish)
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         sys.exit(main())
     except BrokenPipeError:

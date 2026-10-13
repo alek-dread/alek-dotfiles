@@ -2,7 +2,7 @@
 Type=Application
 Name=Wallpaper
 Comment=Choose desktop wallpaper
-Exec=/home/alek/.local/bin/desktop-wallpaper
+Exec="/home/alek/.local/bin/desktop-wallpaper"
 Icon=preferences-desktop-wallpaper
 Terminal=false
 Categories=Settings;DesktopSettings;

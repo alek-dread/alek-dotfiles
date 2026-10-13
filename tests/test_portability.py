@@ -104,7 +104,7 @@ class Installer(unittest.TestCase):
             shutil.copytree(REPO, repo, ignore=shutil.ignore_patterns('.git', '__pycache__'))
             # Make the OS check deterministic, without requiring a Fedora test host.
             release = root / 'os-release'
-            release.write_text('ID=fedora\n')
+            release.write_text('ID=fedora\nVERSION_ID=44\n')
             script = repo / 'install.sh'
             script.write_text(script.read_text().replace('/etc/os-release', str(release)))
             (repo / 'home/.config/hypr/local.lua').write_text('-- another machine\n')
@@ -121,8 +121,9 @@ with open(os.environ['TEST_CALLS'], 'a') as f:
     f.write(json.dumps([name, *sys.argv[1:]]) + '\\n')
 if name == 'id': print('1000')
 if name == 'sudo' and os.environ.get('TEST_FAIL') == '1': sys.exit(1)
+if name == 'rpm': sys.exit(1)
 '''
-            for name in ('sudo', 'rpm', 'id', 'gsettings'):
+            for name in ('sudo', 'rpm', 'id', 'gsettings', 'dconf'):
                 target = bindir / name
                 target.write_text(mock)
                 target.chmod(0o755)
@@ -136,6 +137,11 @@ if name == 'sudo' and os.environ.get('TEST_FAIL') == '1': sys.exit(1)
             settings = home / '.config/desktop-record/settings.json'
             settings.parent.mkdir(parents=True)
             settings.write_text('{"audio":"system","fps":60}\n')
+            machine_env = home / '.config/uwsm/env-hyprland.local'
+            machine_env.parent.mkdir(parents=True)
+            machine_env.write_text('export DESKTOP_RECORD_ENCODER=vaapi\n')
+            repo_env = repo / 'home/.config/uwsm/env-hyprland.local'
+            repo_env.write_text('export DESKTOP_RECORD_ENCODER=software\n')
             result = subprocess.run(['sh', str(script)], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             backups = list((home / 'state/alek-dotfiles/backups').iterdir())
@@ -148,11 +154,16 @@ if name == 'sudo' and os.environ.get('TEST_FAIL') == '1': sys.exit(1)
                 if not source.is_file():
                     continue
                 target = home / source.relative_to(repo / 'home')
-                if target in (settings, local):
+                if target in (settings, local, machine_env):
                     continue
                 self.assertEqual(target.read_text(), source.read_text().replace('/home/alek', str(home)))
                 self.assertEqual(target.stat().st_mode & 0o777, source.stat().st_mode & 0o777)
             calls = [json.loads(line) for line in log.read_text().splitlines()]
+            self.assertEqual(machine_env.read_text(), 'export DESKTOP_RECORD_ENCODER=vaapi\n')
+            self.assertTrue((backups[0] / 'desktop-interface.dconf').exists())
+            self.assertTrue(any(c[:3] == ['sudo', 'rpm', '--import'] for c in calls))
+            self.assertTrue(any('--setopt=terra.gpgcheck=1' in c for c in calls))
+            self.assertFalse(any('--nogpgcheck' in c for c in calls))
             self.assertFalse(any('lact' in c or 'tuned' in c or 'power-profiles-daemon' in c
                                  or 'ilyaz/LACT' in c for c in calls))
             self.assertTrue(any('wf-recorder' in c and 'pulseaudio-utils' in c for c in calls))
@@ -160,6 +171,13 @@ if name == 'sudo' and os.environ.get('TEST_FAIL') == '1': sys.exit(1)
             subprocess.run(['sh', str(script)], env=env, check=True, capture_output=True)
             self.assertEqual(len(list((home / 'state/alek-dotfiles/backups').iterdir())), 2)
             self.assertEqual(settings.read_text(), '{"audio":"system","fps":60}\n')
+            # Unsupported releases must fail before commands or configuration changes.
+            release.write_text('ID=fedora\nVERSION_ID=43\n')
+            count = len(log.read_text().splitlines())
+            result = subprocess.run(['sh', str(script)], env=env, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(len(log.read_text().splitlines()), count)
+            release.write_text('ID=fedora\nVERSION_ID=44\n')
             # A failed package transaction must not replace any settings.
             failed_home = root / 'failed-home'
             failed_home.mkdir()
@@ -197,6 +215,7 @@ Path(sys.argv[sys.argv.index('-f') + 1]).write_text('mock recording')
             runtime.mkdir()
             env = dict(os.environ, HOME=str(home), PATH=str(bindir) + ':' + os.environ['PATH'],
                        XDG_RUNTIME_DIR=str(runtime), XDG_STATE_HOME=str(root / 'state'),
+                       XDG_CONFIG_HOME=str(home / '.config'),
                        TEST_ARGS=str(root / 'args.json'))
             env.pop('DESKTOP_RECORD_ENCODER', None)
             env.pop('DESKTOP_RECORD_DEVICE', None)

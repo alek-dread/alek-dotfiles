@@ -8,3 +8,5 @@ __pycache__/
 .env
 .env.*
 home/.config/hypr/local.lua
+
+home/.config/uwsm/env-hyprland.local

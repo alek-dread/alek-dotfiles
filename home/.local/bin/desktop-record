@@ -3,6 +3,16 @@ set -eu
 umask 077
 export LANGUAGE=en LC_ALL=C.UTF-8
 
+# Keep device settings separate from the reinstallable shared configuration.
+local_env="${XDG_CONFIG_HOME:-$HOME/.config}/uwsm/env-hyprland.local"
+record_encoder_set=${DESKTOP_RECORD_ENCODER+x}
+record_device_set=${DESKTOP_RECORD_DEVICE+x}
+record_encoder_override=${DESKTOP_RECORD_ENCODER-}
+record_device_override=${DESKTOP_RECORD_DEVICE-}
+if [[ -r "$local_env" ]]; then source "$local_env"; fi
+[[ "$record_encoder_set" != x ]] || export DESKTOP_RECORD_ENCODER="$record_encoder_override"
+[[ "$record_device_set" != x ]] || export DESKTOP_RECORD_DEVICE="$record_device_override"
+
 # Software VP8 works without GPU-specific drivers or patent-restricted codecs.
 # VA-API H.264 remains an explicit per-machine option.
 encoder="${DESKTOP_RECORD_ENCODER:-software}"

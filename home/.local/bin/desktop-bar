@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Own the lifetime of Waybar and its single event-driven workspace observer.
+set -eu
+umask 077
+export LANGUAGE=en LC_ALL=C.UTF-8
+exec 9> "${XDG_RUNTIME_DIR:?}/desktop-bar.lock"
+flock -n 9 || exit 0
+runtime=$(mktemp -d "$XDG_RUNTIME_DIR/desktop-bar.XXXXXX")
+export WAYBAR_WORKSPACE_DIR="$runtime"
+bar=''
+observer=''
+cleanup() {
+    trap - EXIT TERM INT HUP
+    [[ -z "$bar" ]] || kill -TERM "$bar" 2>/dev/null || true
+    [[ -z "$observer" ]] || kill -TERM "$observer" 2>/dev/null || true
+    [[ -z "$bar" ]] || wait "$bar" 2>/dev/null || true
+    [[ -z "$observer" ]] || wait "$observer" 2>/dev/null || true
+    rm -rf -- "$runtime"
+}
+trap cleanup EXIT
+trap 'exit 0' TERM INT HUP
+"$HOME/.local/libexec/waybar-workspace" serve 9>&- &
+observer=$!
+for ((i=0; i<250; i++)); do
+    [[ -f "$runtime/ready" ]] && break
+    kill -0 "$observer" 2>/dev/null || { wait "$observer" || true; exit 1; }
+    sleep .02
+done
+[[ -f "$runtime/ready" ]] || { printf '%s\n' 'Workspace observer did not initialize.' >&2; exit 1; }
+waybar "$@" 9>&- &
+bar=$!
+rtmin=$(kill -l RTMIN)
+mask=$(( 511 << (rtmin + 1) ))
+# Do not send real-time signals before Waybar has installed its handlers.
+ready=false
+for ((i=0; i<250; i++)); do
+    kill -0 "$bar" 2>/dev/null || { wait "$bar" || true; exit 1; }
+    while read -r key value rest; do
+        if [[ "$key" == SigCgt: ]] && (( (16#$value & mask) == mask )); then ready=true; break; fi
+    done < "/proc/$bar/status"
+    $ready && break
+    sleep .02
+done
+$ready || { printf '%s\n' 'Waybar did not initialize its update signals.' >&2; exit 1; }
+start=$(awk '{print $22}' "/proc/$bar/stat")
+printf '%s %s\n' "$bar" "$start" > "$runtime/bar.tmp"
+mv "$runtime/bar.tmp" "$runtime/bar.pid"
+for ((number=1; number<=9; number++)); do kill -s "$((rtmin+number))" "$bar"; done
+# A failure of either child tears down both; systemd applies bounded recovery.
+result=0
+wait -n "$bar" "$observer" || result=$?
+if kill -0 "$bar" 2>/dev/null; then exit 1; fi
+exit "$result"

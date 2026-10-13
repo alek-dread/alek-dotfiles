@@ -4,11 +4,11 @@ Portable Hyprland desktop configuration for Fedora 44: Waybar, Fuzzel, Mako,
 Alacritty, Hypridle, Hyprlock, GTK settings and UWSM integration. Includes
 wallpaper, screenshot, screen recording, session and power profile menus.
 The configuration uses Hyprland's Lua API, so the target system needs a
-compatible Hyprland release. The installer supports Fedora with DNF5.
+compatible Hyprland release. The installer requires Fedora 44 with DNF5.
 
 - Desktop packages without version pins: `packages.txt`
 - Keybindings: `home/.config/hypr/KEYS.txt`
-- Fonts: IosevkaTerm Nerd Font Mono, Iosevka Aile and Fira Code
+- Fonts: IosevkaTerm Nerd Font Mono, Iosevka Aile and Adwaita Mono
 - All helper menus, notifications and launcher entries use English.
 
 ## Installation
@@ -24,8 +24,10 @@ backs up matching existing files, copies `home/` into your home directory and
 applies the GTK interface settings. Home paths are adapted automatically.
 File backups are stored under `~/.local/state/alek-dotfiles/backups/`
 (or `$XDG_STATE_HOME/alek-dotfiles/backups/`). Matching files are replaced;
-existing recording preferences and `~/.config/hypr/local.lua` are preserved.
-GTK preferences applied through `gsettings` are not part of the file backup.
+existing recording preferences, `~/.config/hypr/local.lua` and
+`~/.config/uwsm/env-hyprland.local` are preserved. The backup also contains
+`desktop-interface.dconf`, a snapshot of GTK interface preferences. Terra
+bootstrap packages are signature checked using the bundled official Terra 44 key.
 The Hyprland COPR is restricted to `hypr*`, `aquamarine*` and `uwsm`.
 
 This repository covers the graphical desktop and its utilities. Installation
@@ -65,7 +67,16 @@ current occupied workspace has a filled square. Empty workspaces have no square.
 The workspace helper uses Hyprland's Lua dispatch API and listens to compositor
 events, so it works with releases that no longer accept the legacy workspace
 dispatch command. Python and the two SVG indicators are included in the
-installation; no additional service is needed.
+installation. One event observer supplies all nine modules through atomic
+snapshots and native Waybar signals. The panel wrapper owns its observer and
+cache; existing session autostarts use bounded recovery after failures.
+Hypridle reports compositor-confirmed lock transitions to the physical login
+session through `desktop-lock-state`. No additional standalone service is needed.
+
+The session menu offers Suspend only when logind reports it as available.
+Idle locking and display power management remain independent of system suspend.
+GTK settings use Adwaita Sans and Adwaita Mono. The GTK4 dark preference is
+retained for plain GTK4 applications; libadwaita may report a compatibility warning.
 
 ## Existing power profiles
 
@@ -103,7 +114,7 @@ stored in `~/.config/desktop-record/settings.json` and preserved on reinstall.
 Python is a runtime dependency for the recording, wallpaper and power utilities.
 
 To opt into hardware H.264 in MP4 on a machine with a suitable VA-API driver,
-add these lines to `~/.config/uwsm/env-hyprland` and start a new session:
+add these lines to `~/.config/uwsm/env-hyprland.local`:
 
 ```sh
 export DESKTOP_RECORD_ENCODER=vaapi
@@ -116,6 +127,8 @@ does not configure RPM Fusion or replace GPU drivers. For AMD systems that need
 it, configure a suitable driver separately, such as `mesa-va-drivers-freeworld`.
 Use `vainfo` to check H.264 encoding support after installing your driver's
 utilities. Remove those environment settings to return to software recording.
+The recorder reads this optional file at launch; explicit command environment
+settings take precedence. UWSM also loads it when a new session starts.
 Encoder options follow [wf-recorder's documentation](https://github.com/ammen99/wf-recorder).
 Failure details are written to `~/.local/state/desktop-record/last.log` and
 `worker.log` (or under `$XDG_STATE_HOME` when set).
@@ -124,4 +137,14 @@ Failure details are written to `~/.local/state/desktop-record/last.log` and
 
 Run `python3 -m unittest discover -s tests -v`. The tests mock system commands
 and use temporary home directories to verify power service selection, existing
-profile handling, recording encoder arguments, backups and repeat installation.
+profile handling, recording encoder arguments, backups and repeat installation,
+as well as workspace urgency, PID reuse, wallpaper rollback and lock-session selection.
+These regressions complement physical login, unlock and capture checks; they
+do not simulate GPU hardware or certify a cold boot.
+
+The deployed configuration passed a real reboot and login check on 13 October
+2026: the five desktop autostarts ran without restarts, the single workspace
+observer matched all nine workspaces, the portals started successfully, and
+the login keyring was unlocked. Physical password unlock, portal capture and
+full recording decode were also checked before that reboot. A fresh installation
+on another machine and a power-off/power-on cycle have not been tested.

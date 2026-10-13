@@ -1,0 +1,39 @@
+#!/usr/bin/python3
+"""Mirror Hypridle's confirmed Wayland lock state to the physical login session."""
+import json
+import os
+import subprocess
+import sys
+
+
+def output(*args):
+    return subprocess.check_output(args, text=True, timeout=5).strip()
+
+
+def main():
+    if sys.argv[1:] not in (['locked'], ['unlocked']):
+        raise RuntimeError('Usage: desktop-lock-state locked|unlocked')
+    candidates = []
+    for session in json.loads(output('loginctl', 'list-sessions', '--json=short')):
+        if session.get('uid') != os.getuid() or not session.get('seat'):
+            continue
+        properties = output('loginctl', 'show-session', session['session'],
+                            '-p', 'Type', '-p', 'Remote').splitlines()
+        if 'Type=wayland' in properties and 'Remote=no' in properties:
+            candidates.append(session['session'])
+    if len(candidates) != 1:
+        raise RuntimeError('Could not identify one local Wayland login; LockedHint was not changed.')
+    manager = ('busctl', '--system', '--timeout=3', 'call', 'org.freedesktop.login1')
+    reply = output(*manager, '/org/freedesktop/login1',
+                   'org.freedesktop.login1.Manager', 'GetSession', 's', candidates[0])
+    path = json.loads(reply.split(' ', 1)[1])
+    output(*manager, path, 'org.freedesktop.login1.Session', 'SetLockedHint',
+           'b', 'true' if sys.argv[1] == 'locked' else 'false')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
+        print(f'Lock state synchronization failed: {error}', file=sys.stderr)
+        sys.exit(1)

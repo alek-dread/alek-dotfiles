@@ -2,7 +2,7 @@
 Type=Application
 Name=Power Modes
 Comment=Choose an existing system power profile
-Exec=/home/alek/.local/bin/desktop-power-menu
+Exec="/home/alek/.local/bin/desktop-power-menu"
 Icon=preferences-system-power
 Terminal=false
 Categories=Settings;

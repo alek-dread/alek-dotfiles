@@ -66,75 +66,84 @@
         ]
     },
     "custom/workspace-1": {
-        "exec": "/home/alek/.local/libexec/waybar-workspace watch 1",
+        "exec": "cat \"$WAYBAR_WORKSPACE_DIR/1.json\"",
         "return-type": "json",
         "format": "{text}",
         "tooltip": false,
         "exec-on-event": false,
-        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 1"
+        "on-click": "\"/home/alek/.local/libexec/waybar-workspace\" focus 1",
+        "signal": 1
     },
     "custom/workspace-2": {
-        "exec": "/home/alek/.local/libexec/waybar-workspace watch 2",
+        "exec": "cat \"$WAYBAR_WORKSPACE_DIR/2.json\"",
         "return-type": "json",
         "format": "{text}",
         "tooltip": false,
         "exec-on-event": false,
-        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 2"
+        "on-click": "\"/home/alek/.local/libexec/waybar-workspace\" focus 2",
+        "signal": 2
     },
     "custom/workspace-3": {
-        "exec": "/home/alek/.local/libexec/waybar-workspace watch 3",
+        "exec": "cat \"$WAYBAR_WORKSPACE_DIR/3.json\"",
         "return-type": "json",
         "format": "{text}",
         "tooltip": false,
         "exec-on-event": false,
-        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 3"
+        "on-click": "\"/home/alek/.local/libexec/waybar-workspace\" focus 3",
+        "signal": 3
     },
     "custom/workspace-4": {
-        "exec": "/home/alek/.local/libexec/waybar-workspace watch 4",
+        "exec": "cat \"$WAYBAR_WORKSPACE_DIR/4.json\"",
         "return-type": "json",
         "format": "{text}",
         "tooltip": false,
         "exec-on-event": false,
-        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 4"
+        "on-click": "\"/home/alek/.local/libexec/waybar-workspace\" focus 4",
+        "signal": 4
     },
     "custom/workspace-5": {
-        "exec": "/home/alek/.local/libexec/waybar-workspace watch 5",
+        "exec": "cat \"$WAYBAR_WORKSPACE_DIR/5.json\"",
         "return-type": "json",
         "format": "{text}",
         "tooltip": false,
         "exec-on-event": false,
-        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 5"
+        "on-click": "\"/home/alek/.local/libexec/waybar-workspace\" focus 5",
+        "signal": 5
     },
     "custom/workspace-6": {
-        "exec": "/home/alek/.local/libexec/waybar-workspace watch 6",
+        "exec": "cat \"$WAYBAR_WORKSPACE_DIR/6.json\"",
         "return-type": "json",
         "format": "{text}",
         "tooltip": false,
         "exec-on-event": false,
-        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 6"
+        "on-click": "\"/home/alek/.local/libexec/waybar-workspace\" focus 6",
+        "signal": 6
     },
     "custom/workspace-7": {
-        "exec": "/home/alek/.local/libexec/waybar-workspace watch 7",
+        "exec": "cat \"$WAYBAR_WORKSPACE_DIR/7.json\"",
         "return-type": "json",
         "format": "{text}",
         "tooltip": false,
         "exec-on-event": false,
-        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 7"
+        "on-click": "\"/home/alek/.local/libexec/waybar-workspace\" focus 7",
+        "signal": 7
     },
     "custom/workspace-8": {
-        "exec": "/home/alek/.local/libexec/waybar-workspace watch 8",
+        "exec": "cat \"$WAYBAR_WORKSPACE_DIR/8.json\"",
         "return-type": "json",
         "format": "{text}",
         "tooltip": false,
         "exec-on-event": false,
-        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 8"
+        "on-click": "\"/home/alek/.local/libexec/waybar-workspace\" focus 8",
+        "signal": 8
     },
     "custom/workspace-9": {
-        "exec": "/home/alek/.local/libexec/waybar-workspace watch 9",
+        "exec": "cat \"$WAYBAR_WORKSPACE_DIR/9.json\"",
         "return-type": "json",
         "format": "{text}",
         "tooltip": false,
         "exec-on-event": false,
-        "on-click": "/home/alek/.local/libexec/waybar-workspace focus 9"
+        "on-click": "\"/home/alek/.local/libexec/waybar-workspace\" focus 9",
+        "signal": 9
     }
 }
