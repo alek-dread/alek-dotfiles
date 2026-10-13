@@ -61,13 +61,12 @@ The muted Gruvbox palette uses a gray turquoise accent (`#8caaa0`), with a
 turquoise-to-mauve (`#b3919e`) active window border at 45 degrees. The accent
 also appears in Waybar, Fuzzel, Mako, Hyprlock and capture region selection.
 
-Waybar shows nine workspaces that switch with a left mouse click. A small
-outline square in the upper-left corner marks a workspace with windows; the
-current occupied workspace has a filled square. Empty workspaces have no square.
+Waybar shows nine workspaces that switch with a left mouse click. Color
+highlighting distinguishes empty, occupied, active and urgent workspaces.
 The workspace helper uses Hyprland's Lua dispatch API and listens to compositor
 events, so it works with releases that no longer accept the legacy workspace
-dispatch command. Python and the two SVG indicators are included in the
-installation. One event observer supplies all nine modules through atomic
+dispatch command. The Python helper is included in the installation.
+One event observer supplies all nine modules through atomic
 snapshots and native Waybar signals. The panel wrapper owns its observer and
 cache; existing session autostarts use bounded recovery after failures.
 Hypridle reports compositor-confirmed lock transitions to the physical login
