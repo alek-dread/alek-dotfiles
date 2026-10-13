@@ -41,6 +41,7 @@ procps-ng
 xdg-user-dirs
 less
 glib2
+dconf
 wf-recorder
 jq
 pulseaudio-utils

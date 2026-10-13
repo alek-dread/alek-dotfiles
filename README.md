@@ -13,14 +13,17 @@ compatible Hyprland release. The installer requires Fedora 44 with DNF5.
 
 ## Installation
 
-Run as your regular user on Fedora 44 with DNF5 and sudo:
+Run as your regular user on Fedora 44 with DNF5 and sudo. The installer requires
+the default `~/.config` and `~/.local/share` directories; non-default
+`XDG_CONFIG_HOME` or `XDG_DATA_HOME` values are rejected before system changes.
 
 ```sh
 ./install.sh
 ```
 
-The installer enables the Hyprland COPR and Terra, installs `packages.txt`,
-backs up matching existing files, copies `home/` into your home directory and
+The installer validates the source files and destination types, enables the
+Hyprland COPR and Terra, installs `packages.txt`, backs up matching existing
+files, copies the files listed in `docs/install-files.txt` into your home directory and
 applies the GTK interface settings. Home paths are adapted automatically.
 File backups are stored under `~/.local/state/alek-dotfiles/backups/`
 (or `$XDG_STATE_HOME/alek-dotfiles/backups/`). Matching files are replaced;
@@ -28,7 +31,18 @@ existing recording preferences, `~/.config/hypr/local.lua` and
 `~/.config/uwsm/env-hyprland.local` are preserved. The backup also contains
 `desktop-interface.dconf`, a snapshot of GTK interface preferences. Terra
 bootstrap packages are signature checked using the bundled official Terra 44 key.
-The Hyprland COPR is restricted to `hypr*`, `aquamarine*` and `uwsm`.
+The Hyprland COPR is restricted to `hypr*`, `aquamarine*`, `uwsm` and
+`xdg-desktop-portal-hyprland`. Ignored and untracked working-directory files
+are excluded from the installation payload. Keep `docs/install-files.txt`
+in sync with the tracked files under `home/` when adding or removing defaults.
+
+Interface settings are checked and backed up before user files are replaced.
+If copying or applying interface settings fails, the installer restores replaced
+files and interface preferences, removes newly installed files and removes empty
+directories it created. Backups remain available; any rollback failure reports
+their location. Completed package installations, signing-key imports and system
+repository changes remain in place after an error. Those system actions are not
+automatically reversed. Forced termination such as SIGKILL cannot run rollback.
 
 This repository covers the graphical desktop and its utilities. Installation
 does not configure the login manager, install LACT or a power management daemon,
@@ -137,7 +151,9 @@ Failure details are written to `~/.local/state/desktop-record/last.log` and
 Run `python3 -m unittest discover -s tests -v`. The tests mock system commands
 and use temporary home directories to verify power service selection, existing
 profile handling, recording encoder arguments, backups and repeat installation,
-as well as workspace urgency, PID reuse, wallpaper rollback and lock-session selection.
+payload filtering, destination preflight and installer rollback (including
+termination and failed restoration), as well as workspace urgency, PID reuse,
+wallpaper rollback and lock-session selection.
 These regressions complement physical login, unlock and capture checks; they
 do not simulate GPU hardware or certify a cold boot.
 

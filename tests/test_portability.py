@@ -120,6 +120,7 @@ name = Path(sys.argv[0]).name
 with open(os.environ['TEST_CALLS'], 'a') as f:
     f.write(json.dumps([name, *sys.argv[1:]]) + '\\n')
 if name == 'id': print('1000')
+if name == 'gsettings' and sys.argv[1] == 'writable': print('true')
 if name == 'sudo' and os.environ.get('TEST_FAIL') == '1': sys.exit(1)
 if name == 'rpm': sys.exit(1)
 '''
@@ -128,7 +129,9 @@ if name == 'rpm': sys.exit(1)
                 target.write_text(mock)
                 target.chmod(0o755)
             env = dict(os.environ, HOME=str(home), PATH=str(bindir) + ':' + os.environ['PATH'],
-                       TEST_CALLS=str(log), XDG_STATE_HOME=str(home / 'state'))
+                       TEST_CALLS=str(log), XDG_STATE_HOME=str(home / 'state'),
+                       XDG_CONFIG_HOME=str(home / '.config'),
+                       XDG_DATA_HOME=str(home / '.local/share'))
             existing = home / '.config/hypr/hyprland.lua'
             existing.parent.mkdir(parents=True)
             existing.write_text('previous configuration\n')
@@ -182,7 +185,9 @@ if name == 'rpm': sys.exit(1)
             failed_home = root / 'failed-home'
             failed_home.mkdir()
             result = subprocess.run(['sh', str(script)],
-                                    env=dict(env, HOME=str(failed_home), TEST_FAIL='1'),
+                                    env=dict(env, HOME=str(failed_home), TEST_FAIL='1',
+                                             XDG_CONFIG_HOME=str(failed_home / '.config'),
+                                             XDG_DATA_HOME=str(failed_home / '.local/share')),
                                     capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(list(failed_home.iterdir()), [])
