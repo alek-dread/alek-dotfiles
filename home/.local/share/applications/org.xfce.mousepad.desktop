@@ -1,0 +1,19 @@
+[Desktop Entry]
+Version=1.0
+Name=Mousepad
+Comment=Simple Text Editor
+GenericName=Text Editor
+Exec="/home/alek/.local/bin/desktop-text-editor" %U
+Icon=org.xfce.mousepad
+Terminal=false
+StartupNotify=true
+Type=Application
+Categories=Utility;TextEditor;GTK;
+MimeType=text/plain;application/x-zerosize;text/markdown;
+Actions=preferences;
+Keywords=Edit;Text;Simple;XFCE;Lightweight;Fast;
+X-Desktop-File-Install-Version=0.28
+
+[Desktop Action preferences]
+Name=Mousepad Preferences
+Exec="/home/alek/.local/bin/desktop-text-editor" --preferences

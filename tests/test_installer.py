@@ -1,4 +1,5 @@
 """Installer failure regressions with isolated homes and mocked system commands."""
+import configparser
 import json
 import os
 from pathlib import Path
@@ -45,17 +46,28 @@ if name == 'dconf':
         if os.environ.get('FAIL_DUMP'): sys.exit(1)
         print(prefs.read_text())
     if args[0] == 'load': prefs.write_text(sys.stdin.read())
+    if args[0] == 'read':
+        state = json.loads(prefs.read_text())
+        if args[1] in state: print(state[args[1]])
+    if args[0] in ('write', 'reset'):
+        state = json.loads(prefs.read_text())
+        if args[0] == 'write': state[args[1]] = args[2]
+        else: state.pop(args[1], None)
+        prefs.write_text(json.dumps(state))
 if name == 'gsettings':
     state = json.loads(prefs.read_text())
+    app_paths = dict((line.split('|')[1], line.split('|')[2]) for line in
+                     (Path.cwd() / 'docs/desktop-applications.txt').read_text().splitlines())
+    key = app_paths.get(args[2], args[2]) if args[1] != 'org.gnome.desktop.interface' else args[2]
     if args[0] == 'writable': print('false' if os.environ.get('READ_ONLY') else 'true')
-    if args[0] == 'get': print(state.get(args[2], 'default'))
+    if args[0] == 'get': print(state.get(key, 'default'))
     if args[0] == 'set':
-        state[args[2]] = args[3]
+        state[key] = args[3]
         prefs.write_text(json.dumps(state))
         if os.environ.get('FAIL_SETTING') == args[2]: sys.exit(1)
         if os.environ.get('SIGNAL_SETTING') == args[2]: os.kill(os.getppid(), signal.SIGTERM)
     if args[0] == 'reset':
-        state.pop(args[2], None)
+        state.pop(key, None)
         prefs.write_text(json.dumps(state))
 if name == 'cp':
     if os.environ.get('FAIL_RESTORE') and '/backups/' in args[-2]: sys.exit(1)
@@ -193,3 +205,47 @@ if name == 'cp':
         self.assertEqual(len(backups), 1)
         self.assertEqual((backups[0] / '.config/alacritty/alacritty.toml').read_text(),
                          'previous configuration\n')
+
+    def test_mime_merge_preserves_browser_and_other_associations(self):
+        target = self.home / '.config/mimeapps.list'
+        target.parent.mkdir(parents=True)
+        original = ('[Default Applications]\ntext/html=custom-browser.desktop;\n'
+                    'application/pdf=old-reader.desktop;\n'
+                    'x-scheme-handler/magnet=custom-torrent.desktop;\n'
+                    '[Added Associations]\ntext/markdown=other-editor.desktop;\n'
+                    '[Removed Associations]\napplication/pdf=org.pwmt.zathura.desktop;other.desktop;\n')
+        target.write_text(original)
+        self.assertEqual(self.run_install().returncode, 0)
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.read(target)
+        self.assertEqual(parser['Default Applications']['text/html'], 'custom-browser.desktop;')
+        self.assertEqual(parser['Default Applications']['x-scheme-handler/magnet'], 'custom-torrent.desktop;')
+        self.assertEqual(parser['Default Applications']['application/pdf'], 'org.pwmt.zathura.desktop;')
+        self.assertEqual(parser['Added Associations']['text/markdown'],
+                         'org.xfce.mousepad.desktop;other-editor.desktop;')
+        self.assertEqual(parser['Removed Associations']['application/pdf'], 'other.desktop;')
+        first = target.read_text()
+        self.assertEqual(self.run_install().returncode, 0)
+        self.assertEqual(target.read_text(), first)
+        backups = list((self.home / '.local/state/alek-dotfiles/backups').iterdir())
+        self.assertTrue(any((backup / '.config/mimeapps.list').read_text() == original for backup in backups))
+
+    def test_application_failure_restores_explicit_unset_keys_and_mime_file(self):
+        original = dict(self.original_prefs, **{'/org/mate/calc/show-history': 'false'})
+        self.prefs.write_text(json.dumps(original))
+        target = self.home / '.config/mimeapps.list'
+        target.parent.mkdir(parents=True)
+        target.write_text('[Default Applications]\napplication/pdf=old.desktop;\n')
+        result = self.run_install(FAIL_SETTING='show-history')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(json.loads(self.prefs.read_text()), original)
+        self.assertEqual(target.read_text(), '[Default Applications]\napplication/pdf=old.desktop;\n')
+        self.assertFalse((self.home / '.local/bin').exists())
+
+    def test_invalid_existing_mime_file_fails_before_system_changes(self):
+        target = self.home / '.config/mimeapps.list'
+        target.parent.mkdir(parents=True)
+        target.write_text('invalid file\n')
+        self.assertNotEqual(self.run_install().returncode, 0)
+        self.assertEqual(target.read_text(), 'invalid file\n')
+        self.assert_no_system_calls()

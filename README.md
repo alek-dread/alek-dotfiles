@@ -2,7 +2,9 @@
 
 Portable Hyprland desktop configuration for Fedora 44: Waybar, Fuzzel, Mako,
 Alacritty, Hypridle, Hyprlock, GTK settings and UWSM integration. Includes
-wallpaper, screenshot, screen recording, session and power profile menus.
+wallpaper, screenshot, screen recording, session and power profile menus,
+plus Nemo, Mousepad, Ristretto, Zathura, Xarchiver, MATE Calculator, Disk Usage
+Analyzer and Celluloid.
 The configuration uses Hyprland's Lua API, so the target system needs a
 compatible Hyprland release. The installer requires Fedora 44 with DNF5.
 
@@ -24,12 +26,15 @@ the default `~/.config` and `~/.local/share` directories; non-default
 The installer validates the source files and destination types, enables the
 Hyprland COPR and Terra, installs `packages.txt`, backs up matching existing
 files, copies the files listed in `docs/install-files.txt` into your home directory and
-applies the GTK interface settings. Home paths are adapted automatically.
+applies the GTK interface and application settings. Desktop MIME defaults are merged
+into `~/.config/mimeapps.list`; unrelated browser, URI and other associations are retained. Home paths are adapted automatically.
 File backups are stored under `~/.local/state/alek-dotfiles/backups/`
 (or `$XDG_STATE_HOME/alek-dotfiles/backups/`). Matching files are replaced;
 existing recording preferences, `~/.config/hypr/local.lua` and
 `~/.config/uwsm/env-hyprland.local` are preserved. The backup also contains
-`desktop-interface.dconf`, a snapshot of GTK interface preferences. Terra
+`desktop-interface.dconf`, a snapshot of GTK interface preferences, and
+`desktop-applications/`, previous explicit values for the application keys in
+`docs/desktop-applications.txt`. Unset application keys are reset on rollback. Terra
 bootstrap packages are signature checked using the bundled official Terra 44 key.
 The Hyprland COPR is restricted to `hypr*`, `aquamarine*`, `uwsm` and
 `xdg-desktop-portal-hyprland`. Ignored and untracked working-directory files
@@ -38,7 +43,7 @@ in sync with the tracked files under `home/` when adding or removing defaults.
 
 Interface settings are checked and backed up before user files are replaced.
 If copying or applying interface settings fails, the installer restores replaced
-files and interface preferences, removes newly installed files and removes empty
+files, interface and application preferences, removes newly installed files and removes empty
 directories it created. Backups remain available; any rollback failure reports
 their location. Completed package installations, signing-key imports and system
 repository changes remain in place after an error. Those system actions are not
@@ -55,6 +60,34 @@ Select the Hyprland UWSM session at login. Set a wallpaper after login:
 ```sh
 desktop-wallpaper /path/to/image.jpg
 ```
+
+## Desktop applications
+
+Super+E opens Nemo through an English native Wayland wrapper. FileManager1 and
+Nemo D-Bus activation, local launchers and desktop actions use the same wrapper.
+Nemo desktop icons are disabled; Open in Terminal uses Alacritty. Mousepad uses
+the dark Oblivion scheme and the system monospace font. MATE Calculator opens
+floating with History enabled so it can be resized. Audio controls, archive
+windows and the GTK portal file chooser open floating and centered. Oversized
+floating windows fit the monitor work area on opening, with one delayed check
+for initial size negotiation; later manual movement and resizing remain free.
+
+Zathura uses the desktop palette, fits documents to width and supports PDF,
+DjVu and comic-book plugins. Ctrl+R toggles page recoloring. Its wrapper expands
+local compressed PDFs into temporary files and removes them after the viewer exits.
+Ristretto uses ImageMagick to make cached PNG previews for JPEG2000 and XBM;
+other supported images open directly. Original image files are preserved.
+
+Nemo has Create Archive, Extract Archive and Extract to New Folder actions using
+independent GTK dialogs and 7zip/tar backends. Creation supports ZIP, 7z, tar.gz,
+tar.bz2, tar.xz and tar.zst. Extraction skips existing files; new-folder extraction
+chooses an unused name. Open encrypted archives in Xarchiver. The separate helper
+avoids Xarchiver CLI forwarding errors when its viewer is already open.
+
+GTK3 uses Arc-Dark; GTK2/3/4 use Paper icons by Sam Hewitt and the Adwaita cursor.
+Both themes are installed from Fedora packages. GTK4 keeps its dark compatibility
+setting; Arc-Dark does not provide a GTK4 theme. The installer adds replacements
+and defaults without removing applications already installed on the target machine.
 
 ## Machine-specific settings
 
@@ -152,7 +185,8 @@ Run `python3 -m unittest discover -s tests -v`. The tests mock system commands
 and use temporary home directories to verify power service selection, existing
 profile handling, recording encoder arguments, backups and repeat installation,
 payload filtering, destination preflight and installer rollback (including
-termination and failed restoration), as well as workspace urgency, PID reuse,
+termination and failed restoration), MIME merging, application preference rollback,
+as well as workspace urgency, PID reuse,
 wallpaper rollback and lock-session selection.
 These regressions complement physical login, unlock and capture checks; they
 do not simulate GPU hardware or certify a cold boot.

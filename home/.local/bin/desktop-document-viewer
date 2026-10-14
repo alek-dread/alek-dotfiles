@@ -1,0 +1,50 @@
+#!/usr/bin/python3
+import bz2
+import gzip
+import lzma
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+from urllib.parse import unquote, urlsplit
+
+
+def main():
+    os.environ["LANGUAGE"] = "en"
+    os.environ["LC_MESSAGES"] = "en_US.UTF-8"
+    with tempfile.TemporaryDirectory(prefix="zathura-") as directory:
+        arguments = []
+        for number, argument in enumerate(sys.argv[1:]):
+            if argument.startswith("file://"):
+                uri = urlsplit(argument)
+                path = Path(unquote(uri.path)) if uri.netloc in ("", "localhost") else None
+            else:
+                path = Path(argument)
+            opener = None
+            if path is not None:
+                name = path.name.lower()
+                for suffix, reader in ((".pdf.gz", gzip.open), (".pdf.bz2", bz2.open), (".pdf.xz", lzma.open)):
+                    if name.endswith(suffix):
+                        opener = reader
+                        break
+            if opener is not None:
+                target = Path(directory) / str(number) / path.stem
+                target.parent.mkdir()
+                with opener(path, "rb") as source, target.open("wb") as output:
+                    shutil.copyfileobj(source, output)
+                arguments.append(str(target))
+            else:
+                arguments.append(argument)
+        return subprocess.call(["/usr/bin/zathura", *arguments])
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (OSError, EOFError, lzma.LZMAError) as error:
+        message = f"Could not open document: {error}"
+        print(message, file=sys.stderr)
+        subprocess.run(["notify-send", "Zathura", message], check=False)
+        sys.exit(1)

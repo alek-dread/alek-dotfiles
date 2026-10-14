@@ -1,0 +1,147 @@
+#!/usr/bin/python3
+import os
+from pathlib import Path
+import subprocess
+import sys
+import threading
+from urllib.parse import unquote, urlsplit
+
+os.environ.update(LANG='en_US.UTF-8', LANGUAGE='en', LC_MESSAGES='en_US.UTF-8', GDK_BACKEND='wayland')
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, GLib
+
+
+def message(text):
+    dialog = Gtk.MessageDialog(message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CLOSE, text='Archive operation failed')
+    dialog.format_secondary_text(text)
+    dialog.run()
+    dialog.destroy()
+
+
+def chooser(title, action, parent, name=None):
+    dialog = Gtk.FileChooserDialog(title=title, action=action)
+    dialog.add_buttons('Cancel', Gtk.ResponseType.CANCEL,
+                       'Create' if action == Gtk.FileChooserAction.SAVE else 'Extract', Gtk.ResponseType.ACCEPT)
+    dialog.set_current_folder(str(parent))
+    if name:
+        dialog.set_current_name(name)
+        formats = Gtk.FileFilter()
+        formats.set_name('Archives (*.zip, *.7z, *.tar.gz, *.tar.bz2, *.tar.xz, *.tar.zst)')
+        for pattern in ('*.zip', '*.7z', '*.tar.gz', '*.tar.bz2', '*.tar.xz', '*.tar.zst'):
+            formats.add_pattern(pattern)
+        dialog.add_filter(formats)
+    response = dialog.run()
+    result = Path(dialog.get_filename()) if response == Gtk.ResponseType.ACCEPT else None
+    dialog.destroy()
+    return result
+
+
+def new_folder(source):
+    name = source.name
+    for suffix in ('.tar.gz', '.tar.bz2', '.tar.xz', '.tar.zst', '.tar.lz', '.tar.lzma', '.tgz', '.tbz2', '.txz', '.tzst'):
+        if name.lower().endswith(suffix):
+            name = name[:-len(suffix)]
+            break
+    else:
+        name = source.stem
+    name = name if name not in ('', '.', '..') else 'Extracted archive'
+    for number in range(1, 10000):
+        target = source.parent / (name if number == 1 else f'{name} ({number})')
+        try:
+            target.mkdir()
+            return target
+        except FileExistsError:
+            continue
+    raise ValueError('Could not create a new extraction folder')
+
+
+def perform(command, directory, creating):
+    window = Gtk.Window(title='Create Archive' if creating else 'Extract Archive')
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin=24)
+    spinner = Gtk.Spinner()
+    spinner.start()
+    box.pack_start(spinner, False, False, 0)
+    box.pack_start(Gtk.Label(label='Creating archive...' if creating else 'Extracting archive...'), False, False, 0)
+    window.add(box)
+    window.connect('delete-event', lambda *_: True)
+    window.show_all()
+    result = [1]
+
+    def finished(returncode, output):
+        window.destroy()
+        result[0] = returncode
+        if returncode:
+            message(output[-1800:] or 'The operation could not be completed. Open encrypted archives in Xarchiver.')
+        else:
+            subprocess.run(['notify-send', 'Archive created' if creating else 'Archive extracted', str(directory)], check=False)
+        Gtk.main_quit()
+        return False
+
+    def worker():
+        try:
+            process = subprocess.run(command, cwd=directory, stdin=subprocess.DEVNULL,
+                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+            GLib.idle_add(finished, process.returncode, process.stdout)
+        except OSError as error:
+            GLib.idle_add(finished, 1, str(error))
+
+    threading.Thread(target=worker, daemon=True).start()
+    Gtk.main()
+    return result[0]
+
+
+def main():
+    mode, *arguments = sys.argv[1:]
+    files = []
+    for argument in arguments:
+        if argument.startswith('file://'):
+            uri = urlsplit(argument)
+            if uri.netloc not in ('', 'localhost'):
+                raise ValueError('Only local files are supported')
+            argument = unquote(uri.path)
+        path = Path(argument).absolute()
+        if not path.exists():
+            raise ValueError(f'File does not exist: {path}')
+        files.append(path)
+    if not files:
+        raise ValueError('Select at least one file or folder')
+    if mode == 'compress':
+        directory = files[0].parent
+        target = chooser('Create Archive', Gtk.FileChooserAction.SAVE, directory, files[0].stem + '.zip')
+        if target is None:
+            return 0
+        if target.exists():
+            raise ValueError('Choose a new archive name; the selected file already exists.')
+        if any(p.is_dir() and target.is_relative_to(p) for p in files):
+            raise ValueError('Save the archive outside the folders being compressed.')
+        relative = [os.path.relpath(p, directory) for p in files]
+        name = target.name.lower()
+        if name.endswith(('.zip', '.7z')):
+            command = ['7z', 'a', '-tzip' if name.endswith('.zip') else '-t7z', str(target), '--', *relative]
+        else:
+            flags = {'.tar.gz': '-czf', '.tar.bz2': '-cjf', '.tar.xz': '-cJf', '.tar.zst': '-cf'}
+            suffix = next((s for s in flags if name.endswith(s)), None)
+            if suffix is None:
+                raise ValueError('Use .zip, .7z, .tar.gz, .tar.bz2, .tar.xz or .tar.zst for the archive name.')
+            command = ['tar', *(['--zstd'] if suffix == '.tar.zst' else []), flags[suffix], str(target), '--', *relative]
+        return perform(command, directory, True)
+    if mode not in ('extract', 'extract-folder') or len(files) != 1 or not files[0].is_file():
+        raise ValueError('Select one archive to extract')
+    source = files[0]
+    target = new_folder(source) if mode == 'extract-folder' else chooser('Extract Archive', Gtk.FileChooserAction.SELECT_FOLDER, source.parent)
+    if target is None:
+        return 0
+    if source.name.lower().endswith(('.tar', '.tar.gz', '.tar.bz2', '.tar.xz', '.tar.zst', '.tar.lz', '.tar.lzma', '.tgz', '.tbz2', '.txz', '.tzst')):
+        command = ['tar', '--skip-old-files', '-xf', str(source), '-C', str(target)]
+    else:
+        command = ['7z', 'x', '-aos', '-o' + str(target), '--', str(source)]
+    return perform(command, target, False)
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, ValueError) as error:
+        message(str(error))
+        sys.exit(1)

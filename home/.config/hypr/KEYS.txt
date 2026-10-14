@@ -25,7 +25,7 @@ Super+left / right drag  Move / resize window
 Super+middle click       Toggle floating for the focused window
 
 Additional desktop bindings
-Super+E                  Files (Nautilus)
+Super+E                  Files (Nemo)
 Super+Shift+P            Power modes
 Super+Alt+L              Lock session
 Super+Shift+E            Session menu
@@ -62,3 +62,6 @@ bindings rather than reproducing dwm's ClkTagBar/ClkLtSymbol actions.
 
 Bar: click sound for mixer; right-click to mute; scroll for volume.
 Click NET for nmtui. Lock after 10 idle minutes; displays off after 15.
+
+Oversized floating windows are reduced to the monitor work area when opening.
+Moving and resizing existing windows remain unrestricted. Fullscreen keeps native sizing.

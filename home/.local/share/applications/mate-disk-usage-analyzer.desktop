@@ -1,0 +1,16 @@
+[Desktop Entry]
+Name=Disk Usage Analyzer
+Comment=Check folder sizes and available disk space
+TryExec=mate-disk-usage-analyzer
+Exec="/home/alek/.local/bin/desktop-disk-usage"
+Icon=mate-disk-usage-analyzer
+Terminal=false
+Type=Application
+StartupNotify=true
+Categories=GTK;System;Filesystem;
+Keywords=MATE;check;disk;usage;analyze;size;space;
+X-MATE-Bugzilla-Bugzilla=MATE
+X-MATE-Bugzilla-Product=mate-utils
+X-MATE-Bugzilla-Component=mate-disk-usage-analyzer
+X-MATE-Bugzilla-Version=1.28.3
+X-Desktop-File-Install-Version=0.28

@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.freedesktop.FileManager1
+Exec="/home/alek/.local/bin/desktop-file-manager" --no-default-window

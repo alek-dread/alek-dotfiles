@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Zathura
+Comment=A minimalistic document viewer
+Exec="/home/alek/.local/bin/desktop-document-viewer" %U
+Icon=org.pwmt.zathura
+Terminal=false
+NoDisplay=true
+Categories=Office;Viewer;
+MimeType=image/vnd.djvu;image/vnd.djvu+multipage;

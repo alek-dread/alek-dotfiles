@@ -18,6 +18,7 @@ system_started=0
 backup=
 : > "$stage/changed-files"
 : > "$stage/changed-keys"
+: > "$stage/changed-app-keys"
 : > "$stage/created-dirs"
 cleanup() {
     result=$?
@@ -39,6 +40,14 @@ cleanup() {
             done < "$stage/changed-keys"
             dconf load /org/gnome/desktop/interface/ < "$backup/desktop-interface.dconf" || rollback_failed=1
         fi
+        while IFS= read -r path; do
+            saved="$backup/desktop-applications$path"
+            if [ -s "$saved" ]; then
+                dconf write "$path" "$(cat "$saved")" || rollback_failed=1
+            else
+                dconf reset "$path" || rollback_failed=1
+            fi
+        done < "$stage/changed-app-keys"
         while IFS= read -r directory; do
             rmdir "$directory" 2>/dev/null
         done < "$stage/created-dirs"
@@ -82,6 +91,9 @@ while IFS= read -r relative; do
 done < docs/install-files.txt
 install_home=$(printf '%s\n' "$HOME" | sed 's/[\\&|]/\\&/g')
 find "$stage/home" -type f -exec sed -i "s|/home/alek|$install_home|g" {} +
+if [ -f "$HOME/.config/mimeapps.list" ]; then
+    python3 docs/merge-mimeapps.py "$HOME/.config/mimeapps.list" "$stage/home/.config/mimeapps.list"
+fi
 find "$stage/home" -type f -print > "$stage/sources"
 
 system_started=1
@@ -103,12 +115,22 @@ while IFS='=' read -r key value; do
         exit 1
     }
 done < docs/desktop-interface.txt
+while IFS='|' read -r schema key path value; do
+    gsettings get "$schema" "$key" > /dev/null
+    [ "$(gsettings writable "$schema" "$key")" = true ] || {
+        printf 'Application setting is not writable: %s %s\n' "$schema" "$key" >&2
+        exit 1
+    }
+    mkdir -p "$stage/desktop-applications$(dirname "$path")"
+    dconf read "$path" > "$stage/desktop-applications$path"
+done < docs/desktop-applications.txt
 
 backup_root="${XDG_STATE_HOME:-$HOME/.local/state}/alek-dotfiles/backups"
 umask 077
 mkdir -p "$backup_root"
 backup=$(mktemp -d "$backup_root/$(date +%Y%m%d-%H%M%S)-XXXXXX")
 cp "$stage/desktop-interface.dconf" "$backup/desktop-interface.dconf"
+cp -a "$stage/desktop-applications" "$backup/desktop-applications"
 while IFS= read -r source; do
     relative=${source#"$stage/home"/}
     target="$HOME/$relative"
@@ -131,4 +153,8 @@ while IFS='=' read -r key value; do
     printf '%s\n' "$key" >> "$stage/changed-keys"
     gsettings set org.gnome.desktop.interface "$key" "$value"
 done < docs/desktop-interface.txt
+while IFS='|' read -r schema key path value; do
+    printf '%s\n' "$path" >> "$stage/changed-app-keys"
+    gsettings set "$schema" "$key" "$value"
+done < docs/desktop-applications.txt
 complete=1

@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Name=Ristretto
+Comment=Look at your images easily
+GenericName=Image Viewer
+Exec="/home/alek/.local/bin/desktop-image-viewer" %U
+Icon=org.xfce.ristretto
+Terminal=false
+Type=Application
+X-MultipleArgs=false
+Categories=GTK;Graphics;Viewer;
+Keywords=image;photo;picture;viewer;graphics;
+StartupNotify=true
+MimeType=image/png;image/gif;image/jpeg;image/bmp;image/x-pixmap;image/tiff;image/svg+xml;image/x-xpixmap;image/webp;image/x-bmp;image/x-png;image/x-pcx;image/x-tga;image/xpm;image/apng;image/avif;image/heic;image/jp2;image/jxl;image/qoi;image/svg+xml-compressed;image/vnd.microsoft.icon;image/x-dds;image/x-exr;image/x-portable-anymap;image/x-portable-bitmap;image/x-portable-graymap;image/x-portable-pixmap;image/x-qoi;image/x-win-bitmap;image/x-xbitmap;
+X-Desktop-File-Install-Version=0.28

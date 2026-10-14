@@ -54,6 +54,7 @@ end)
 
 -- Upstream dwm config.def.h, with Mod4 / SUPER and Wayland applications.
 dwm_keys = dofile(os.getenv("HOME") .. "/.config/hypr/dwm-keys.lua")
+window_bounds = dofile(os.getenv("HOME") .. "/.config/hypr/window-bounds.lua")
 hl.bind("SUPER + P", hl.dsp.exec_cmd("fuzzel"))
 hl.bind("SUPER + SHIFT + Return", hl.dsp.exec_cmd("uwsm app -- alacritty"))
 hl.bind("SUPER + B", hl.dsp.exec_cmd("pkill -USR1 -x waybar"))
@@ -83,7 +84,7 @@ for i = 1, 9 do
 end
 
 -- Additional desktop functions, without aliases for upstream dwm bindings.
-hl.bind("SUPER + E", hl.dsp.exec_cmd("uwsm app -- nautilus"))
+hl.bind("SUPER + E", hl.dsp.exec_cmd("uwsm app -- desktop-file-manager"))
 hl.bind("SUPER + SHIFT + P", hl.dsp.exec_cmd("desktop-power-menu"))
 hl.bind("SUPER + SHIFT + J", hl.dsp.layout("swapnext"))
 hl.bind("SUPER + SHIFT + K", hl.dsp.layout("swapprev"))
@@ -139,6 +140,27 @@ hl.window_rule({
     name = "audio-controls",
     match = { class = "^(org.pulseaudio.pavucontrol|pavucontrol)$" },
     float = true,
+    center = true,
+})
+
+hl.window_rule({
+    name = "calculator",
+    match = { class = "^mate-calc$" },
+    float = true,
+    center = true,
+})
+hl.window_rule({
+    name = "archive-manager",
+    match = { class = "^([Xx]archiver|desktop-archive-action)$" },
+    float = true,
+    center = true,
+})
+
+hl.window_rule({
+    name = "file-chooser",
+    match = { class = "^xdg-desktop-portal-gtk$" },
+    float = true,
+    center = true,
 })
 
 -- Machine-specific overrides are optional and are preserved by the installer.

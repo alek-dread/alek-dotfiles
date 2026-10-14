@@ -1,0 +1,10 @@
+[Nemo Action]
+Active=true
+Name=Create Archive...
+Exec="/home/alek/.local/bin/desktop-archive-action" compress %F
+Icon-Name=package-x-generic
+Selection=notnone
+Extensions=any;
+Quote=single
+Dependencies=xarchiver;
+UriScheme=file
