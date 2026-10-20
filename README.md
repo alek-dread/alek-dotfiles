@@ -1,137 +1,136 @@
 # alek-dotfiles
 
-Portable Hyprland desktop configuration for Fedora 44: Waybar, Fuzzel, Mako,
-Alacritty, Hypridle, Hyprlock, GTK settings and UWSM integration. Includes
-wallpaper, screenshot, screen recording, session and power profile menus,
-plus Nemo, Mousepad, Ristretto, Zathura, Xarchiver, MATE Calculator, Disk Usage
-Analyzer and Celluloid.
-The configuration uses Hyprland's Lua API, so the target system needs a
-compatible Hyprland release. The installer requires Fedora 44 with DNF5.
-
-- Desktop packages without version pins: `packages.txt`
-- Keybindings: `home/.config/hypr/KEYS.txt`
-- Fonts: IosevkaTerm Nerd Font Mono, Iosevka Aile and Adwaita Mono
-- All helper menus, notifications and launcher entries use English.
+A configured Hyprland session for **Fedora Workstation 44**, installed alongside
+GNOME. Includes Waybar, Fuzzel, Mako, Alacritty, Hypridle, Hyprlock, screenshots,
+screen recording, wallpaper and power menus, and desktop application helpers.
+The Graphite Rhythm appearance follows the current desktop: graphite surfaces,
+warm text, gold focus, no gaps, rounding, animations, shadows or blur.
 
 ## Installation
 
-Run as your regular user on Fedora 44 with DNF5 and sudo. The installer requires
-the default `~/.config` and `~/.local/share` directories; non-default
-`XDG_CONFIG_HOME` or `XDG_DATA_HOME` values are rejected before system changes.
+Run as your regular user on Fedora 44 with DNF5 and sudo:
 
 ```sh
 ./install.sh
 ```
 
-The installer validates the source files and destination types, enables the
-Hyprland COPR and Terra, installs `packages.txt`, backs up matching existing
-files, copies the files listed in `docs/install-files.txt` into your home directory and
-applies the GTK interface and application settings. Desktop MIME defaults are merged
-into `~/.config/mimeapps.list`; unrelated browser, URI and other associations are retained. Home paths are adapted automatically.
-File backups are stored under `~/.local/state/alek-dotfiles/backups/`
-(or `$XDG_STATE_HOME/alek-dotfiles/backups/`). Matching files are replaced;
-existing recording preferences, `~/.config/hypr/local.lua` and
-`~/.config/uwsm/env-hyprland.local` are preserved. The backup also contains
-`desktop-interface.dconf`, a snapshot of GTK interface preferences, and
-`desktop-applications/`, previous explicit values for the application keys in
-`docs/desktop-applications.txt`. Unset application keys are reset on rollback. Terra
-bootstrap packages are signature checked using the bundled official Terra 44 key.
-The Hyprland COPR is restricted to `hypr*`, `aquamarine*`, `uwsm` and
-`xdg-desktop-portal-hyprland`. Ignored and untracked working-directory files
-are excluded from the installation payload. Keep `docs/install-files.txt`
-in sync with the tracked files under `home/` when adding or removing defaults.
+Log out when convenient and select **Hyprland (Alek)** in your existing login
+manager. GNOME remains available. The installer does not restart your session.
+The new session starts Hyprland through UWSM, which manages environment loading,
+Hyprland-only autostarts and session shutdown. `uwsm finalize` completes startup.
 
-Interface settings are checked and backed up before user files are replaced.
-If copying or applying interface settings fails, the installer restores replaced
-files, interface and application preferences, removes newly installed files and removes empty
-directories it created. Backups remain available; any rollback failure reports
-their location. Completed package installations, signing-key imports and system
-repository changes remain in place after an error. Those system actions are not
-automatically reversed. Forced termination such as SIGKILL cannot run rollback.
+The installer:
 
-This repository covers the graphical desktop and its utilities. Installation
-does not configure the login manager, install LACT or a power management daemon,
-create power profiles, enable power services, or replace GPU drivers. Existing
-system power management and any existing LACT installation remain under your
-machine's own configuration.
+1. Checks the manifest and existing destinations before making package changes.
+2. Enables the Hyprland COPR and Terra and installs the dependencies in `packages.txt`.
+3. Adds the configuration and scripts listed in `docs/install-files.txt`.
+4. Adds `/usr/share/wayland-sessions/alek-hyprland.desktop` as a separate session entry.
 
-Select the Hyprland UWSM session at login. Set a wallpaper after login:
+Existing files are never overwritten. Identical files are accepted on repeat
+installation; recording preferences are preserved even when customized.
+Conflicting files, symlinks and unsafe destination directories stop installation
+with their paths. Resolve conflicts manually and rerun; there is no force option.
+`hypr/local.lua` and `uwsm/env-hyprland.local` are optional, are not installed and
+remain untouched. The installer requires the default `~/.config` and
+`~/.local/share` locations.
+
+The installer does **not** remove packages, replace GDM or another greeter,
+change the default session, configure GPU drivers or power daemons, enable
+system services, or change GNOME settings. It does not write global GTK settings,
+MIME defaults, Nemo D-Bus overrides or application preferences through dconf.
+Application launchers have distinct `alek-hyprland-*` IDs and appear only in
+Hyprland. Distribution launchers and existing file associations remain intact.
+
+The COPR is restricted to `hypr*`, `aquamarine*`, `uwsm` and
+`xdg-desktop-portal-hyprland`; Terra uses the bundled signing key and lower
+repository priority. DNF installs packages and may update required dependencies
+through its normal dependency resolution; the installer never requests erasing,
+swapping or removing packages. Package transactions and repository changes are
+not rolled back after a later failure. Failed home-file copying rolls back only
+files created by that operation; existing or subsequently modified files are
+preserved. If adding the session entry fails, the copied home files remain and
+a rerun can finish the installation. Forced termination such as SIGKILL cannot
+run Python cleanup.
+
+## Desktop
+
+- Super+Shift+Enter: configured Alacritty terminal.
+- Super+P: application launcher.
+- Super+E: Nemo file manager.
+- Super+F1: complete key reference.
+- Super+Alt+L: lock; Super+Shift+E: session menu.
+- Print / Ctrl+Print: region / all-display screenshot.
+- Super+Print / Super+Ctrl+Print: region / monitor recording, or stop recording.
+- Super+Shift+Print: recording preferences.
+- Super+Shift+P: available power profiles.
+
+All menus, notifications and custom launcher entries use English. The keyboard
+uses US/RU with Alt+Shift switching. Waybar has nine clickable workspaces and an
+event observer compatible with Hyprland's Lua dispatch API. The target system
+needs a compatible Lua-based Hyprland release.
+
+The shell uses Iosevka Aile and IosevkaTerm Nerd Font Mono. Hyprland's UWSM
+environment selects Adwaita dark and the Adwaita cursor for that session.
+GNOME's saved theme, fonts, icons and other application preferences are retained.
+Alacritty and Zathura use their own configurations under
+`~/.config/alek-hyprland/` through the supplied wrappers, preserving normal
+`~/.config/alacritty/` and `~/.config/zathura/` settings.
+The design reference is `home/.config/desktop-design/DESIGN.md`.
+
+The desktop starts with a solid graphite background. Choose an image with the
+Wallpaper launcher or:
 
 ```sh
 desktop-wallpaper /path/to/image.jpg
 ```
 
-## Desktop applications
+Nemo, Mousepad, Ristretto, Zathura, Xarchiver, MATE Calculator, Disk Usage Analyzer
+and Celluloid are installed as additional applications. Existing applications
+stay installed; your file-opening defaults stay yours. Custom launchers use the
+English Wayland wrappers. Zathura supports compressed PDFs with bounded decoding;
+Ristretto supports cached JPEG2000/XBM previews with conversion and cache limits.
+The supplied Nemo archive actions use independent dialogs and 7zip/tar backends.
 
-Super+E opens Nemo through an English native Wayland wrapper. FileManager1 and
-Nemo D-Bus activation, local launchers and desktop actions use the same wrapper.
-Nemo desktop icons are disabled; Open in Terminal uses Alacritty. Mousepad uses
-the dark Oblivion scheme and the system monospace font. MATE Calculator opens
-floating with History enabled so it can be resized. Audio controls, archive
-windows and the GTK portal file chooser open floating and centered. Oversized
-floating windows fit the monitor work area on opening, with one delayed check
-for initial size negotiation; later manual movement and resizing remain free.
+## Recording and locking
 
-Zathura uses the desktop palette, fits documents to width and supports PDF,
-DjVu and comic-book plugins. Ctrl+R toggles page recoloring. Its wrapper expands
-local compressed PDFs into temporary files and removes them after the viewer exits.
-Ristretto uses ImageMagick to make cached PNG previews for JPEG2000 and XBM;
-other supported images open directly. Original image files are preserved.
+Recording defaults to software VP8/Opus in WebM, 30 FPS, with no audio. The menu
+supports microphone, system audio, both, and 15/30/60 FPS. Recordings are saved
+to `$(xdg-user-dir VIDEOS)/Recordings`. Preferences live in
+`~/.config/desktop-record/settings.json` and are preserved on repeat installation.
 
-Nemo has Create Archive, Extract Archive and Extract to New Folder actions using
-independent GTK dialogs and 7zip/tar backends. Creation supports ZIP, 7z, tar.gz,
-tar.bz2, tar.xz and tar.zst. Extraction skips existing files; new-folder extraction
-chooses an unused name. Open encrypted archives in Xarchiver. The separate helper
-avoids Xarchiver CLI forwarding errors when its viewer is already open.
+`desktop-record.service` supervises preparation and encoding. `ExecStopPost`
+cleans up audio routing even after worker failure. Failed module unloads remain
+recorded for retry, and cleanup recovers orphaned recorder mixing modules.
+`desktop-lock.service` supervises a single lock process with bounded restarts.
+Notifications are hidden while locked. Idle lock is 10 minutes; monitor DPMS is
+15 minutes. The supplied idle/session menus do not request system suspend.
 
-GTK3 uses Arc-Dark; GTK2/3/4 use Paper icons by Sam Hewitt and the Adwaita cursor.
-Both themes are installed from Fedora packages. GTK4 keeps its dark compatibility
-setting; Arc-Dark does not provide a GTK4 theme. The installer adds replacements
-and defaults without removing applications already installed on the target machine.
+Capture permissions allow grim, wf-recorder and the Hyprland portal. Rules take
+effect when Hyprland starts. A config reload alone cannot replace permissions.
+No AMD-specific cursor or encoder workaround is enabled in the shared config.
 
-## Machine-specific settings
+VA-API H.264 recording is optional on compatible machines. Put this in
+`~/.config/uwsm/env-hyprland.local`:
 
-Displays use their preferred mode with automatic placement. To set a monitor
-layout, scaling or a GPU workaround, copy `docs/local.lua.example` to
-`~/.config/hypr/local.lua`, edit it, and reload Hyprland. This optional file is
-loaded after the shared configuration, is ignored by Git, and is preserved by
-the installer. The shared defaults have no fixed output name, refresh rate or
-Polaris hardware cursor workaround.
+```sh
+export DESKTOP_RECORD_ENCODER=vaapi
+# Optional: export DESKTOP_RECORD_DEVICE=/dev/dri/renderD128
+```
 
-The US/RU keyboard layout and Alt+Shift switching remain desktop preferences;
-override `input` in `local.lua` if your keyboard needs different settings.
-Keybindings follow upstream dwm with Super as Mod4. Open the reference with Super+F1.
+Codec support depends on your GPU and installed drivers. The installer does not
+configure RPM Fusion or replace Mesa packages. Remove the setting to use software
+recording; `DESKTOP_RECORD_DISABLE_VAAPI=1` forces software recording if needed.
+Failure logs are under `~/.local/state/desktop-record/`.
 
-## Appearance and workspaces
+## Machine preferences
 
-The muted Gruvbox palette uses a gray turquoise accent (`#8caaa0`), with a
-turquoise-to-mauve (`#b3919e`) active window border at 45 degrees. The accent
-also appears in Waybar, Fuzzel, Mako, Hyprlock and capture region selection.
+Monitors use preferred modes and automatic placement. For a custom layout or
+GPU workaround, copy `docs/local.lua.example` to `~/.config/hypr/local.lua` and
+edit it. Hardware settings, LACT profiles, greetd configuration and system
+maintenance files are outside this repository's installation scope.
 
-Waybar shows nine workspaces that switch with a left mouse click. Color
-highlighting distinguishes empty, occupied, active and urgent workspaces.
-The workspace helper uses Hyprland's Lua dispatch API and listens to compositor
-events, so it works with releases that no longer accept the legacy workspace
-dispatch command. The Python helper is included in the installation.
-One event observer supplies all nine modules through atomic
-snapshots and native Waybar signals. The panel wrapper owns its observer and
-cache; existing session autostarts use bounded recovery after failures.
-Hypridle reports compositor-confirmed lock transitions to the physical login
-session through `desktop-lock-state`. No additional standalone service is needed.
-
-The session menu offers Suspend only when logind reports it as available.
-Idle locking and display power management remain independent of system suspend.
-GTK settings use Adwaita Sans and Adwaita Mono. The GTK4 dark preference is
-retained for plain GTK4 applications; libadwaita may report a compatibility warning.
-
-## Existing power profiles
-
-Super+Shift+P opens the power menu. It uses `powerprofilesctl` when a compatible
-power profiles service is already running, otherwise the running TuneD service.
-Only profiles reported by that service are offered. Standard and existing custom
-TuneD profiles are both supported, with no dependency on `xeon-*`, LACT or AMD
-GPU controls. Services are queried without activating a stopped power daemon.
-Switching uses the service's normal authorization policy.
+The power menu uses an already-running power-profiles service or TuneD. It lists
+only available profiles and does not activate a stopped power daemon:
 
 ```sh
 desktop-power-menu --status
@@ -139,61 +138,18 @@ desktop-power-menu --list
 desktop-power-menu --set balanced
 ```
 
-`--set` accepts an exact name from `--list`. If neither supported service is
-running or its command is unavailable, the menu reports that in English; the
-rest of the desktop works independently. Configure your preferred power manager
-through your distribution if you want to enable this optional integration.
-
-## Screen recording
-
-- Super+Print: record a region, or stop the current recording.
-- Super+Ctrl+Print: record the focused monitor, or stop the current recording.
-- Super+Shift+Print: open the English recording settings menu in Fuzzel.
-- Recordings are saved in `$(xdg-user-dir VIDEOS)/Recordings`.
-
-The default is software VP8 video with Opus audio in WebM, requiring no specific
-GPU device or VA-API driver. New installations use 30 FPS with no audio.
-The menu offers microphone, system audio, mixed microphone/system audio and
-15/60 FPS. Audio routing uses `pactl` through PipeWire's PulseAudio compatibility
-server; temporary mixing modules are removed after recording. Preferences are
-stored in `~/.config/desktop-record/settings.json` and preserved on reinstall.
-Python is a runtime dependency for the recording, wallpaper and power utilities.
-
-To opt into hardware H.264 in MP4 on a machine with a suitable VA-API driver,
-add these lines to `~/.config/uwsm/env-hyprland.local`:
-
-```sh
-export DESKTOP_RECORD_ENCODER=vaapi
-# Optional: pin a render device instead of wf-recorder's automatic detection.
-export DESKTOP_RECORD_DEVICE=/dev/dri/renderD128
-```
-
-Hardware H.264 support depends on your GPU and codec packages. The installer
-does not configure RPM Fusion or replace GPU drivers. For AMD systems that need
-it, configure a suitable driver separately, such as `mesa-va-drivers-freeworld`.
-Use `vainfo` to check H.264 encoding support after installing your driver's
-utilities. Remove those environment settings to return to software recording.
-The recorder reads this optional file at launch; explicit command environment
-settings take precedence. UWSM also loads it when a new session starts.
-Encoder options follow [wf-recorder's documentation](https://github.com/ammen99/wf-recorder).
-Failure details are written to `~/.local/state/desktop-record/last.log` and
-`worker.log` (or under `$XDG_STATE_HOME` when set).
-
 ## Verification
 
-Run `python3 -m unittest discover -s tests -v`. The tests mock system commands
-and use temporary home directories to verify power service selection, existing
-profile handling, recording encoder arguments, backups and repeat installation,
-payload filtering, destination preflight and installer rollback (including
-termination and failed restoration), MIME merging, application preference rollback,
-as well as workspace urgency, PID reuse,
-wallpaper rollback and lock-session selection.
-These regressions complement physical login, unlock and capture checks; they
-do not simulate GPU hardware or certify a cold boot.
+```sh
+python3 -m unittest discover -s tests -v
+```
 
-The deployed configuration passed a real reboot and login check on 13 October
-2026: the five desktop autostarts ran without restarts, the single workspace
-observer matched all nine workspaces, the portals started successfully, and
-the login keyring was unlocked. Physical password unlock, portal capture and
-full recording decode were also checked before that reboot. A fresh installation
-on another machine and a power-off/power-on cycle have not been tested.
+Tests use temporary homes and mocked package/system commands. They check
+non-overwriting installation, GNOME/default preservation, conflicts, repeat
+installation, exclusive file creation, rollback, the separate UWSM session,
+recording arguments and cleanup, workspace handling, wallpaper recovery and
+lock-session selection. They do not install packages on the test host.
+
+The running source desktop passed 22 health checks on 20 October 2026. The
+additive installer has automated coverage; a fresh Fedora Workstation VM and a
+real GDM login using the new session entry have not been tested.

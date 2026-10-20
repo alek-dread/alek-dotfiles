@@ -4,52 +4,72 @@
     "height": 24,
     "spacing": 0,
     "modules-left": [
-        "group/workspaces"
+        "group/workspaces",
+        "hyprland/window"
     ],
     "modules-center": [
-        "hyprland/window"
+        "clock"
     ],
     "modules-right": [
         "tray",
         "hyprland/language",
         "pulseaudio",
-        "network",
-        "clock"
+        "network"
     ],
     "hyprland/window": {
         "format": "{title}",
-        "max-length": 70,
+        "max-length": 38,
         "separate-outputs": true,
         "tooltip": false
     },
     "tray": {
-        "icon-size": 14,
-        "spacing": 6
+        "icon-size": 16,
+        "spacing": 8
     },
     "hyprland/language": {
         "format": "{}",
-        "format-en": "EN",
-        "format-ru": "RU",
+        "format-en": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>  EN",
+        "format-ru": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>  RU",
         "tooltip": false
     },
     "pulseaudio": {
-        "format": "VOL {volume}%",
-        "format-muted": "MUTE",
+        "format": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\">{icon}</span>  {volume}%",
+        "format-muted": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>  {volume}%",
         "scroll-step": 5,
         "max-volume": 100,
         "on-click": "uwsm app -- pavucontrol",
-        "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+        "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+        "tooltip-format": "{desc}\nVolume: {volume}%",
+        "format-icons": [
+            "",
+            "",
+            ""
+        ]
     },
     "network": {
-        "format-ethernet": "NET",
-        "format-wifi": "WiFi {signalStrength}%",
-        "format-disconnected": "OFFLINE",
+        "format-ethernet": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>",
+        "format-wifi": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>  {signalStrength}%",
+        "format-disconnected": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>",
         "tooltip-format": "{ifname}: {ipaddr}\n{essid}",
-        "on-click": "uwsm app -- alacritty -e nmtui"
+        "on-click": "uwsm app -- alacritty -e nmtui",
+        "tooltip-format-ethernet": "{ifname} · {ipaddr}",
+        "tooltip-format-wifi": "{essid} · {signalStrength}%\n{ifname} · {ipaddr}",
+        "tooltip-format-disconnected": "No network connection",
+        "format-disabled": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>"
     },
     "clock": {
-        "format": "{:%a %d %b  %H:%M}",
-        "tooltip-format": "{:%Y-%m-%d}"
+        "format": "<b>{0:%H:%M}</b>  <span color=\"#a89984\">{0:%a, %d %b}</span>",
+        "tooltip-format": "<span font_family=\"IosevkaTerm Nerd Font Mono\">{calendar}</span>",
+        "locale": "en_GB.UTF-8",
+        "calendar": {
+            "mode": "month",
+            "format": {
+                "months": "<span color=\"#d4c7ad\"><b>{}</b></span>",
+                "days": "<span color=\"#d4c7ad\">{}</span>",
+                "weekdays": "<span color=\"#a89984\">{}</span>",
+                "today": "<span color=\"#c1a16b\"><b><u>{}</u></b></span>"
+            }
+        }
     },
     "group/workspaces": {
         "orientation": "horizontal",
@@ -145,5 +165,7 @@
         "exec-on-event": false,
         "on-click": "\"/home/alek/.local/libexec/waybar-workspace\" focus 9",
         "signal": 9
-    }
+    },
+    "margin": "0",
+    "reload_style_on_change": true
 }

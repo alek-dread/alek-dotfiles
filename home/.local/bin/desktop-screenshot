@@ -11,7 +11,7 @@ file="$dir/$(date +%Y-%m-%d_%H-%M-%S)-$$.png"
 
 case "${1:-region}" in
     region)
-        geometry=$(slurp -b 28282880 -c 8caaa0 -w 2) || exit 0
+        geometry=$(slurp -b 28282880 -c c1a16b -w 2) || exit 0
         grim -g "$geometry" "$file"
         ;;
     screen)

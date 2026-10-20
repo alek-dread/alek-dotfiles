@@ -1,5 +1,6 @@
-"""Installer failure regressions with isolated homes and mocked system commands."""
+"""Additive installation tests; no packages, greeters or live settings are changed."""
 import configparser
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -7,245 +8,211 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location('install_home', REPO / 'docs/install-home.py')
+installer = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(installer)
 
 
-class InstallerFailures(unittest.TestCase):
+class AdditiveInstaller(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.repo = self.root / 'repo'
         shutil.copytree(REPO, self.repo, ignore=shutil.ignore_patterns('.git', '__pycache__'))
+        self.home = self.root / 'home & test'
+        self.home.mkdir()
         release = self.root / 'os-release'
         release.write_text('ID=fedora\nVERSION_ID=44\n')
+        self.release = release
         self.script = self.repo / 'install.sh'
         self.script.write_text(self.script.read_text().replace('/etc/os-release', str(release)))
-        self.home = self.root / 'home'
-        self.home.mkdir()
+        self.session = self.root / 'system/wayland-sessions/alek-hyprland.desktop'
+        helper = self.repo / 'docs/install-home.py'
+        helper.write_text(helper.read_text().replace('/usr/share/wayland-sessions/alek-hyprland.desktop', str(self.session)))
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         self.calls = self.root / 'calls.jsonl'
-        self.prefs = self.root / 'prefs.json'
-        self.original_prefs = {'gtk-theme': "'previous-theme'", 'cursor-size': '32'}
-        self.prefs.write_text(json.dumps(self.original_prefs))
         mock = '''#!/usr/bin/python3
-import json, os, signal, subprocess, sys
+import json, os, subprocess, sys
 from pathlib import Path
 name = Path(sys.argv[0]).name
 args = sys.argv[1:]
 with open(os.environ['TEST_CALLS'], 'a') as f:
     f.write(json.dumps([name, *args]) + '\\n')
-prefs = Path(os.environ['TEST_PREFS'])
 if name == 'id': print('1000')
 if name == 'rpm': sys.exit(1)
-if name == 'sudo' and os.environ.get('FAIL_PACKAGES'): sys.exit(1)
-if name == 'dconf':
-    if args[0] == 'dump':
-        if os.environ.get('FAIL_DUMP'): sys.exit(1)
-        print(prefs.read_text())
-    if args[0] == 'load': prefs.write_text(sys.stdin.read())
-    if args[0] == 'read':
-        state = json.loads(prefs.read_text())
-        if args[1] in state: print(state[args[1]])
-    if args[0] in ('write', 'reset'):
-        state = json.loads(prefs.read_text())
-        if args[0] == 'write': state[args[1]] = args[2]
-        else: state.pop(args[1], None)
-        prefs.write_text(json.dumps(state))
-if name == 'gsettings':
-    state = json.loads(prefs.read_text())
-    app_paths = dict((line.split('|')[1], line.split('|')[2]) for line in
-                     (Path.cwd() / 'docs/desktop-applications.txt').read_text().splitlines())
-    key = app_paths.get(args[2], args[2]) if args[1] != 'org.gnome.desktop.interface' else args[2]
-    if args[0] == 'writable': print('false' if os.environ.get('READ_ONLY') else 'true')
-    if args[0] == 'get': print(state.get(key, 'default'))
-    if args[0] == 'set':
-        state[key] = args[3]
-        prefs.write_text(json.dumps(state))
-        if os.environ.get('FAIL_SETTING') == args[2]: sys.exit(1)
-        if os.environ.get('SIGNAL_SETTING') == args[2]: os.kill(os.getppid(), signal.SIGTERM)
-    if args[0] == 'reset':
-        state.pop(key, None)
-        prefs.write_text(json.dumps(state))
-if name == 'cp':
-    if os.environ.get('FAIL_RESTORE') and '/backups/' in args[-2]: sys.exit(1)
-    result = subprocess.run(['/usr/bin/cp', *args]).returncode
-    if os.environ.get('FAIL_COPY') and '/home/.local/bin/desktop-bar' in args[-2]:
-        if '--remove-destination' in args: sys.exit(1)
-    sys.exit(result)
+if name == 'sudo':
+    if os.environ.get('FAIL_PACKAGES'): sys.exit(1)
+    if args[0] == 'python3': sys.exit(subprocess.run(args).returncode)
+if name in ('gsettings', 'dconf', 'systemctl', 'xdg-mime'): sys.exit(99)
 '''
-        for name in ('sudo', 'rpm', 'id', 'gsettings', 'dconf', 'cp'):
-            path = self.bin / name
-            path.write_text(mock)
-            path.chmod(0o755)
+        for name in ('sudo', 'rpm', 'id', 'gsettings', 'dconf', 'systemctl', 'xdg-mime'):
+            p = self.bin / name
+            p.write_text(mock)
+            p.chmod(0o755)
         self.env = dict(os.environ, HOME=str(self.home),
-                        XDG_STATE_HOME=str(self.home / '.local/state'),
                         XDG_CONFIG_HOME=str(self.home / '.config'),
                         XDG_DATA_HOME=str(self.home / '.local/share'),
-                        PATH=str(self.bin) + ':' + os.environ['PATH'],
-                        TEST_CALLS=str(self.calls), TEST_PREFS=str(self.prefs))
+                        PATH=str(self.bin) + ':' + os.environ['PATH'], TEST_CALLS=str(self.calls))
 
     def run_install(self, **env):
-        return subprocess.run(['sh', str(self.script)], env=dict(self.env, **env),
-                              capture_output=True, text=True)
+        return subprocess.run(['sh', str(self.script)], env=dict(self.env, **env), capture_output=True, text=True)
 
-    def write_old_config(self):
-        path = self.home / '.config/alacritty/alacritty.toml'
-        path.parent.mkdir(parents=True)
-        path.write_text('previous configuration\n')
-        path.chmod(0o640)
-        return path
+    def logged(self):
+        return [json.loads(s) for s in self.calls.read_text().splitlines()] if self.calls.exists() else []
 
-    def assert_no_system_calls(self):
-        calls = [json.loads(line) for line in self.calls.read_text().splitlines()] if self.calls.exists() else []
-        self.assertFalse(any(call[0] in ('sudo', 'rpm', 'gsettings', 'dconf') for call in calls))
+    def write(self, relative, data):
+        p = self.home / relative
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(data)
+        return p
 
-    def test_manifest_matches_tracked_payload(self):
+    def test_manifest_matches_tracked_payload_and_has_no_global_overrides(self):
         tracked = subprocess.check_output(['git', 'ls-files', '-z', 'home'], cwd=REPO).decode().split('\0')
-        expected = {path.removeprefix('home/') for path in tracked if path}
         entries = (REPO / 'docs/install-files.txt').read_text().splitlines()
+        self.assertEqual(set(entries), {p.removeprefix('home/') for p in tracked if p})
         self.assertEqual(len(entries), len(set(entries)))
-        self.assertEqual(set(entries), expected)
+        for forbidden in ('.gtkrc-2.0', '.config/mimeapps.list', '.config/uwsm/env'):
+            self.assertNotIn(forbidden, entries)
+        self.assertFalse(any(p.startswith(('.config/gtk-', '.local/share/dbus-1/', '.config/alacritty/', '.config/zathura/')) for p in entries))
+        for p in (REPO / 'home/.local/share/applications').glob('*.desktop'):
+            self.assertTrue(p.name.startswith('alek-hyprland-'))
+            parser = configparser.ConfigParser(interpolation=None, strict=False)
+            parser.read(p)
+            self.assertEqual(parser['Desktop Entry']['OnlyShowIn'], 'Hyprland;')
 
-    def test_ignored_and_untracked_files_are_never_installed(self):
-        for name in ('audit-junk.bak', '__pycache__/junk.pyc', 'untracked-helper'):
-            path = self.repo / 'home/.local/bin' / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(b'junk\x00/home/alek')
+    def test_fresh_workstation_preserves_gnome_defaults_and_adds_uwsm_session(self):
+        originals = {}
+        for name in ('.config/gtk-3.0/settings.ini', '.config/mimeapps.list', '.config/dconf/user',
+                     '.config/alacritty/alacritty.toml', '.config/zathura/zathurarc',
+                     '.local/share/applications/nemo.desktop', '.local/share/dbus-1/services/nemo.service'):
+            p = self.write(name, 'existing preferences: ' + name)
+            p.chmod(0o640)
+            originals[p] = (p.read_bytes(), p.stat().st_mode)
         result = self.run_install()
         self.assertEqual(result.returncode, 0, result.stderr)
-        for name in ('audit-junk.bak', '__pycache__', 'untracked-helper'):
-            self.assertFalse((self.home / '.local/bin' / name).exists())
-        calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
-        self.assertTrue(any('xdg-desktop-portal-hyprland' in arg and 'includepkgs=' in arg
-                            for call in calls for arg in call))
+        for p, (content, mode) in originals.items():
+            self.assertEqual(p.read_bytes(), content)
+            self.assertEqual(p.stat().st_mode, mode)
+        self.assertIn('uwsm start -e -D Hyprland hyprland.desktop', self.session.read_text())
+        self.assertTrue((self.home / '.local/bin/desktop-terminal').is_file())
+        self.assertTrue((self.home / '.config/alek-hyprland/alacritty.toml').is_file())
+        calls = self.logged()
+        self.assertFalse(any(c[0] in ('gsettings', 'dconf', 'systemctl', 'xdg-mime') for c in calls))
+        for call in calls:
+            self.assertFalse(any(arg in ('remove', 'swap', '--allowerasing', 'gdm', 'greetd') for arg in call))
+        self.assertTrue(any('--setopt=terra.gpgcheck=1' in c for c in calls))
+        self.assertTrue(any('wf-recorder' in c for c in calls))
 
-    def test_destination_directory_rejected_before_system_changes(self):
-        target = self.home / '.config/alacritty/alacritty.toml'
-        target.mkdir(parents=True)
+    def test_conflict_stops_before_packages_and_preserves_existing_files(self):
+        p = self.write('.config/hypr/hyprland.lua', 'my configuration')
         result = self.run_install()
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('found a directory', result.stderr)
-        self.assertEqual(list(target.iterdir()), [])
-        self.assert_no_system_calls()
+        self.assertIn('Existing files were preserved', result.stderr)
+        self.assertEqual(p.read_text(), 'my configuration')
+        self.assertFalse(any(c[0] in ('sudo', 'rpm') for c in self.logged()))
+        self.assertFalse((self.home / '.local/bin').exists())
 
-    def test_parent_file_rejected_before_system_changes(self):
-        (self.home / '.config').write_text('keep')
+    def test_existing_session_entry_is_not_replaced(self):
+        self.session.parent.mkdir(parents=True)
+        self.session.write_text('existing session')
+        result = self.run_install()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.session.read_text(), 'existing session')
+        self.assertFalse(any(c[0] == 'sudo' for c in self.logged()))
+
+    def test_reinstall_preserves_files_preferences_and_optional_overrides(self):
+        result = self.run_install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        preference = self.write('.config/desktop-record/settings.json', '{"audio":"system","fps":60}\n')
+        local = self.write('.config/hypr/local.lua', '-- private monitor layout\n')
+        env = self.write('.config/uwsm/env-hyprland.local', 'export DESKTOP_RECORD_ENCODER=software\n')
+        before = {p: (p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns)
+                  for p in self.home.rglob('*') if p.is_file()}
+        result = self.run_install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for p, values in before.items():
+            self.assertEqual((p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns), values)
+        self.assertIn('Added 0 files', result.stdout)
+
+    def test_ignored_and_untracked_files_never_enter_payload(self):
+        junk = self.repo / 'home/.local/bin/untracked-helper'
+        junk.write_text('junk')
+        self.assertEqual(self.run_install().returncode, 0)
+        self.assertFalse((self.home / '.local/bin/untracked-helper').exists())
+
+    def test_symlink_destination_and_parent_are_rejected(self):
+        actual = self.root / 'original'
+        actual.write_text('keep')
+        p = self.home / '.config'
+        p.symlink_to(actual)
         self.assertNotEqual(self.run_install().returncode, 0)
-        self.assertEqual((self.home / '.config').read_text(), 'keep')
-        self.assert_no_system_calls()
+        self.assertEqual(actual.read_text(), 'keep')
+        self.assertFalse(any(c[0] == 'sudo' for c in self.logged()))
 
-    def test_custom_xdg_directories_rejected_before_system_changes(self):
-        for key in ('XDG_CONFIG_HOME', 'XDG_DATA_HOME'):
-            with self.subTest(key=key):
-                self.assertNotEqual(self.run_install(**{key: str(self.root / 'custom')}).returncode, 0)
-                self.assert_no_system_calls()
-
-    def test_missing_manifest_source_rejected_before_system_changes(self):
-        (self.repo / 'home/.config/alacritty/alacritty.toml').unlink()
+    def test_missing_source_stops_before_packages(self):
+        (self.repo / 'home/.config/hypr/security.lua').unlink()
         self.assertNotEqual(self.run_install().returncode, 0)
-        self.assert_no_system_calls()
+        self.assertFalse(any(c[0] == 'sudo' for c in self.logged()))
 
-    def test_failed_dconf_snapshot_does_not_replace_files(self):
-        old = self.write_old_config()
-        self.assertNotEqual(self.run_install(FAIL_DUMP='1').returncode, 0)
-        self.assertEqual(old.read_text(), 'previous configuration\n')
-        self.assertFalse((self.home / '.local/bin').exists())
-
-    def test_readonly_settings_do_not_replace_files(self):
-        old = self.write_old_config()
-        self.assertNotEqual(self.run_install(READ_ONLY='1').returncode, 0)
-        self.assertEqual(old.read_text(), 'previous configuration\n')
-        self.assertFalse((self.home / '.local/bin').exists())
-
-    def test_setting_failure_restores_files_modes_preferences_and_directories(self):
-        old = self.write_old_config()
-        result = self.run_install(FAIL_SETTING='cursor-size')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(old.read_text(), 'previous configuration\n')
-        self.assertEqual(old.stat().st_mode & 0o777, 0o640)
-        self.assertEqual(json.loads(self.prefs.read_text()), self.original_prefs)
-        self.assertFalse((self.home / '.local/bin').exists())
-        self.assertFalse((self.home / '.config/hypr').exists())
-        self.assertIn('package and repository changes remain', result.stderr)
-
-    def test_copy_failure_restores_original_symlink(self):
-        old = self.write_old_config()
-        actual = self.root / 'actual-config'
-        old.replace(actual)
-        old.symlink_to(actual)
-        result = self.run_install(FAIL_COPY='1')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertTrue(old.is_symlink())
-        self.assertEqual(old.resolve(), actual)
-        self.assertEqual(actual.read_text(), 'previous configuration\n')
-        self.assertFalse((self.home / '.local/bin').exists())
-
-    def test_package_failure_leaves_home_untouched(self):
-        result = self.run_install(FAIL_PACKAGES='1')
-        self.assertNotEqual(result.returncode, 0)
+    def test_package_failure_leaves_home_and_session_untouched(self):
+        self.assertNotEqual(self.run_install(FAIL_PACKAGES='1').returncode, 0)
         self.assertEqual(list(self.home.iterdir()), [])
+        self.assertFalse(self.session.exists())
 
-    def test_termination_restores_files_and_preferences(self):
-        old = self.write_old_config()
-        result = self.run_install(SIGNAL_SETTING='cursor-size')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(old.read_text(), 'previous configuration\n')
-        self.assertEqual(json.loads(self.prefs.read_text()), self.original_prefs)
-        self.assertFalse((self.home / '.local/bin').exists())
-
-    def test_failed_restore_reports_retained_backup(self):
-        self.write_old_config()
-        result = self.run_install(FAIL_SETTING='cursor-size', FAIL_RESTORE='1')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Rollback incomplete. Restore from:', result.stderr)
-        backups = list((self.home / '.local/state/alek-dotfiles/backups').iterdir())
-        self.assertEqual(len(backups), 1)
-        self.assertEqual((backups[0] / '.config/alacritty/alacritty.toml').read_text(),
-                         'previous configuration\n')
-
-    def test_mime_merge_preserves_browser_and_other_associations(self):
-        target = self.home / '.config/mimeapps.list'
-        target.parent.mkdir(parents=True)
-        original = ('[Default Applications]\ntext/html=custom-browser.desktop;\n'
-                    'application/pdf=old-reader.desktop;\n'
-                    'x-scheme-handler/magnet=custom-torrent.desktop;\n'
-                    '[Added Associations]\ntext/markdown=other-editor.desktop;\n'
-                    '[Removed Associations]\napplication/pdf=org.pwmt.zathura.desktop;other.desktop;\n')
-        target.write_text(original)
-        self.assertEqual(self.run_install().returncode, 0)
-        parser = configparser.ConfigParser(interpolation=None)
-        parser.read(target)
-        self.assertEqual(parser['Default Applications']['text/html'], 'custom-browser.desktop;')
-        self.assertEqual(parser['Default Applications']['x-scheme-handler/magnet'], 'custom-torrent.desktop;')
-        self.assertEqual(parser['Default Applications']['application/pdf'], 'org.pwmt.zathura.desktop;')
-        self.assertEqual(parser['Added Associations']['text/markdown'],
-                         'org.xfce.mousepad.desktop;other-editor.desktop;')
-        self.assertEqual(parser['Removed Associations']['application/pdf'], 'other.desktop;')
-        first = target.read_text()
-        self.assertEqual(self.run_install().returncode, 0)
-        self.assertEqual(target.read_text(), first)
-        backups = list((self.home / '.local/state/alek-dotfiles/backups').iterdir())
-        self.assertTrue(any((backup / '.config/mimeapps.list').read_text() == original for backup in backups))
-
-    def test_application_failure_restores_explicit_unset_keys_and_mime_file(self):
-        original = dict(self.original_prefs, **{'/org/mate/calc/show-history': 'false'})
-        self.prefs.write_text(json.dumps(original))
-        target = self.home / '.config/mimeapps.list'
-        target.parent.mkdir(parents=True)
-        target.write_text('[Default Applications]\napplication/pdf=old.desktop;\n')
-        result = self.run_install(FAIL_SETTING='show-history')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(json.loads(self.prefs.read_text()), original)
-        self.assertEqual(target.read_text(), '[Default Applications]\napplication/pdf=old.desktop;\n')
-        self.assertFalse((self.home / '.local/bin').exists())
-
-    def test_invalid_existing_mime_file_fails_before_system_changes(self):
-        target = self.home / '.config/mimeapps.list'
-        target.parent.mkdir(parents=True)
-        target.write_text('invalid file\n')
+    def test_unsupported_os_and_custom_xdg_stop_before_packages(self):
+        self.release.write_text('ID=fedora\nVERSION_ID=43\n')
         self.assertNotEqual(self.run_install().returncode, 0)
-        self.assertEqual(target.read_text(), 'invalid file\n')
-        self.assert_no_system_calls()
+        self.release.write_text('ID=fedora\nVERSION_ID=44\n')
+        self.assertNotEqual(self.run_install(XDG_CONFIG_HOME=str(self.root / 'elsewhere')).returncode, 0)
+        self.assertFalse(any(c[0] == 'sudo' for c in self.logged()))
+
+
+class ExclusiveCopy(unittest.TestCase):
+    def test_concurrent_conflict_never_overwrites_and_rolls_back_new_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a = Path(tmp) / 'new/a'
+            b = Path(tmp) / 'new/b'
+            real_link = os.link
+            def link(source, target):
+                if target == b:
+                    b.write_bytes(b'concurrent file')
+                return real_link(source, target)
+            with patch.object(installer.os, 'link', side_effect=link):
+                with self.assertRaises(FileExistsError):
+                    installer.install([(a, b'a', 0o644), (b, b'b', 0o644)])
+            self.assertFalse(a.exists())
+            self.assertEqual(b.read_bytes(), b'concurrent file')
+            self.assertEqual(sorted(p.name for p in b.parent.iterdir()), ['b'])
+
+    def test_interruption_preserves_subsequently_edited_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a = Path(tmp) / 'new/a'
+            b = Path(tmp) / 'new/b'
+            real_link = os.link
+            def link(source, target):
+                if target == b:
+                    a.write_bytes(b'edited after installation')
+                    raise KeyboardInterrupt()
+                return real_link(source, target)
+            with patch.object(installer.os, 'link', side_effect=link):
+                with self.assertRaises(KeyboardInterrupt):
+                    installer.install([(a, b'a', 0o644), (b, b'b', 0o644)])
+            self.assertEqual(a.read_bytes(), b'edited after installation')
+            self.assertFalse(b.exists())
+
+    def test_failed_copy_removes_only_created_directories(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'new/deep/file'
+            with patch.object(installer.os, 'link', side_effect=OSError('disk failure')):
+                with self.assertRaises(OSError):
+                    installer.install([(target, b'data', 0o755)])
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+
+if __name__ == '__main__':
+    unittest.main()

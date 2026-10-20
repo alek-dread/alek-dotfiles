@@ -1,17 +1,24 @@
-font=IosevkaTerm Nerd Font Mono 12
-background-color=#32302f
+# Graphite Rhythm: 90u popup width; 3u / 4u content padding; compact 8u icons.
+font=Iosevka Aile 11
+background-color=#282828
 text-color=#d4c7ad
-border-color=#8caaa0
-border-size=2
+border-color=#504945
+border-size=1
 border-radius=0
 width=360
-padding=12
-margin=8
+padding=12,16
+margin=0
+outer-margin=0
 anchor=top-right
 default-timeout=5000
+max-icon-size=32
 max-visible=3
 max-history=20
 
 [urgency=critical]
-border-color=#b8796c
+border-color=#d39a8b
 default-timeout=0
+
+[mode=locked]
+invisible=1
+history=0

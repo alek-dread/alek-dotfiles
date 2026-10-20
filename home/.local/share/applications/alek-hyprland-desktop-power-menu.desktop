@@ -1,9 +1,10 @@
 [Desktop Entry]
+OnlyShowIn=Hyprland;
 Type=Application
 Name=Power Modes
-Comment=Choose an existing system power profile
+Comment=Switch between Power Saver, Balanced and Performance modes
 Exec="/home/alek/.local/bin/desktop-power-menu"
 Icon=preferences-system-power
 Terminal=false
 Categories=Settings;
-Keywords=power;profile;performance;balanced;power saver;
+Keywords=power;tuned;performance;balanced;power saver;

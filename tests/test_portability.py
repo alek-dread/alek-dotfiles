@@ -96,103 +96,6 @@ class PowerProfiles(unittest.TestCase):
                     switch.assert_not_called()
 
 
-class Installer(unittest.TestCase):
-    def test_copy_backup_preserve_preferences_and_no_power_packages(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            repo = root / 'repo'
-            shutil.copytree(REPO, repo, ignore=shutil.ignore_patterns('.git', '__pycache__'))
-            # Make the OS check deterministic, without requiring a Fedora test host.
-            release = root / 'os-release'
-            release.write_text('ID=fedora\nVERSION_ID=44\n')
-            script = repo / 'install.sh'
-            script.write_text(script.read_text().replace('/etc/os-release', str(release)))
-            (repo / 'home/.config/hypr/local.lua').write_text('-- another machine\n')
-            home = root / 'home & test'
-            home.mkdir()
-            bindir = root / 'bin'
-            bindir.mkdir()
-            log = root / 'calls.jsonl'
-            mock = '''#!/usr/bin/python3
-import json, os, sys
-from pathlib import Path
-name = Path(sys.argv[0]).name
-with open(os.environ['TEST_CALLS'], 'a') as f:
-    f.write(json.dumps([name, *sys.argv[1:]]) + '\\n')
-if name == 'id': print('1000')
-if name == 'gsettings' and sys.argv[1] == 'writable': print('true')
-if name == 'sudo' and os.environ.get('TEST_FAIL') == '1': sys.exit(1)
-if name == 'rpm': sys.exit(1)
-'''
-            for name in ('sudo', 'rpm', 'id', 'gsettings', 'dconf'):
-                target = bindir / name
-                target.write_text(mock)
-                target.chmod(0o755)
-            env = dict(os.environ, HOME=str(home), PATH=str(bindir) + ':' + os.environ['PATH'],
-                       TEST_CALLS=str(log), XDG_STATE_HOME=str(home / 'state'),
-                       XDG_CONFIG_HOME=str(home / '.config'),
-                       XDG_DATA_HOME=str(home / '.local/share'))
-            existing = home / '.config/hypr/hyprland.lua'
-            existing.parent.mkdir(parents=True)
-            existing.write_text('previous configuration\n')
-            local = existing.with_name('local.lua')
-            local.write_text('-- local monitor settings\n')
-            settings = home / '.config/desktop-record/settings.json'
-            settings.parent.mkdir(parents=True)
-            settings.write_text('{"audio":"system","fps":60}\n')
-            machine_env = home / '.config/uwsm/env-hyprland.local'
-            machine_env.parent.mkdir(parents=True)
-            machine_env.write_text('export DESKTOP_RECORD_ENCODER=vaapi\n')
-            repo_env = repo / 'home/.config/uwsm/env-hyprland.local'
-            repo_env.write_text('export DESKTOP_RECORD_ENCODER=software\n')
-            result = subprocess.run(['sh', str(script)], env=env, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            backups = list((home / 'state/alek-dotfiles/backups').iterdir())
-            self.assertEqual(len(backups), 1)
-            self.assertEqual((backups[0] / '.config/hypr/hyprland.lua').read_text(),
-                             'previous configuration\n')
-            self.assertEqual(local.read_text(), '-- local monitor settings\n')
-            self.assertEqual(settings.read_text(), '{"audio":"system","fps":60}\n')
-            for source in (repo / 'home').rglob('*'):
-                if not source.is_file():
-                    continue
-                target = home / source.relative_to(repo / 'home')
-                if target in (settings, local, machine_env):
-                    continue
-                self.assertEqual(target.read_text(), source.read_text().replace('/home/alek', str(home)))
-                self.assertEqual(target.stat().st_mode & 0o777, source.stat().st_mode & 0o777)
-            calls = [json.loads(line) for line in log.read_text().splitlines()]
-            self.assertEqual(machine_env.read_text(), 'export DESKTOP_RECORD_ENCODER=vaapi\n')
-            self.assertTrue((backups[0] / 'desktop-interface.dconf').exists())
-            self.assertTrue(any(c[:3] == ['sudo', 'rpm', '--import'] for c in calls))
-            self.assertTrue(any('--setopt=terra.gpgcheck=1' in c for c in calls))
-            self.assertFalse(any('--nogpgcheck' in c for c in calls))
-            self.assertFalse(any('lact' in c or 'tuned' in c or 'power-profiles-daemon' in c
-                                 or 'ilyaz/LACT' in c for c in calls))
-            self.assertTrue(any('wf-recorder' in c and 'pulseaudio-utils' in c for c in calls))
-            # Reinstall still keeps preferences and saves another backup.
-            subprocess.run(['sh', str(script)], env=env, check=True, capture_output=True)
-            self.assertEqual(len(list((home / 'state/alek-dotfiles/backups').iterdir())), 2)
-            self.assertEqual(settings.read_text(), '{"audio":"system","fps":60}\n')
-            # Unsupported releases must fail before commands or configuration changes.
-            release.write_text('ID=fedora\nVERSION_ID=43\n')
-            count = len(log.read_text().splitlines())
-            result = subprocess.run(['sh', str(script)], env=env, capture_output=True)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(len(log.read_text().splitlines()), count)
-            release.write_text('ID=fedora\nVERSION_ID=44\n')
-            # A failed package transaction must not replace any settings.
-            failed_home = root / 'failed-home'
-            failed_home.mkdir()
-            result = subprocess.run(['sh', str(script)],
-                                    env=dict(env, HOME=str(failed_home), TEST_FAIL='1',
-                                             XDG_CONFIG_HOME=str(failed_home / '.config'),
-                                             XDG_DATA_HOME=str(failed_home / '.local/share')),
-                                    capture_output=True)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(list(failed_home.iterdir()), [])
-
-
 class Recording(unittest.TestCase):
     def test_default_software_and_optional_hardware_arguments(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -201,7 +104,8 @@ class Recording(unittest.TestCase):
             helpers = home / '.local/bin'
             helpers.mkdir(parents=True)
             menu = helpers / 'desktop-record-menu'
-            menu.write_text('#!/bin/sh\n[ "$1" != --prepare ] || printf "30\\nsource-test\\n"\n')
+            menu.write_text('#!/bin/sh\nif [ "$1" = --prepare ]; then printf "30\\nsource-test\\n"; '
+                            'else [ "${TEST_CLEANUP_FAIL:-0}" = 0 ]; fi\n')
             menu.chmod(0o755)
             bindir = root / 'bin'
             bindir.mkdir()
@@ -222,8 +126,13 @@ Path(sys.argv[sys.argv.index('-f') + 1]).write_text('mock recording')
                        XDG_RUNTIME_DIR=str(runtime), XDG_STATE_HOME=str(root / 'state'),
                        XDG_CONFIG_HOME=str(home / '.config'),
                        TEST_ARGS=str(root / 'args.json'))
+            (runtime / 'desktop-record').mkdir()
+            def request():
+                (runtime / 'desktop-record/request').write_bytes(
+                    ('\0'.join([str(root / 'video'), '-g', '0,0 128x128']) + '\0').encode())
             env.pop('DESKTOP_RECORD_ENCODER', None)
             env.pop('DESKTOP_RECORD_DEVICE', None)
+            env.pop('DESKTOP_RECORD_DISABLE_VAAPI', None)
             script = str(REPO / 'home/.local/bin/desktop-record')
             for encoder, device, codec, audio in [
                     ('software', '', 'libvpx', 'libopus'),
@@ -232,18 +141,50 @@ Path(sys.argv[sys.argv.index('-f') + 1]).write_text('mock recording')
                 with self.subTest(encoder=encoder, device=device):
                     options = {} if encoder == 'software' else {'DESKTOP_RECORD_ENCODER': encoder}
                     options['DESKTOP_RECORD_DEVICE'] = device
-                    result = subprocess.run([script, '_record', str(root / 'video'), '-g', '0,0 128x128'],
+                    request()
+                    result = subprocess.run([script, '_record'],
                                             env=dict(env, **options), capture_output=True, text=True)
                     self.assertEqual(result.returncode, 0, result.stderr)
                     args = json.loads((root / 'args.json').read_text())
                     self.assertEqual(args[args.index('-c') + 1], codec)
                     self.assertEqual(args[args.index('-C') + 1], audio)
                     self.assertIn('--audio=source-test', args)
+                    if encoder == 'software':
+                        self.assertIn('--no-dmabuf', args)
+                        self.assertIn('deadline=realtime', args)
+                        self.assertIn('cpu-used=4', args)
                     if device:
                         self.assertEqual(args[args.index('-d') + 1], device)
                     else:
                         self.assertNotIn('-d', args)
+                    cleanup = subprocess.run([script, '_cleanup'], env=env, capture_output=True, text=True)
+                    self.assertEqual(cleanup.returncode, 0, cleanup.stderr)
                     self.assertFalse((runtime / 'desktop-record/pid').exists())
+            # Machine policy must keep even inherited VA-API requests off the GPU.
+            request()
+            result = subprocess.run([script, '_record'],
+                                    env=dict(env, DESKTOP_RECORD_ENCODER='vaapi',
+                                             DESKTOP_RECORD_DISABLE_VAAPI='1'),
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            args = json.loads((root / 'args.json').read_text())
+            self.assertEqual(args[args.index('-c') + 1], 'libvpx')
+            self.assertIn('--no-dmabuf', args)
+            self.assertNotIn('-d', args)
+            self.assertNotIn('h264_vaapi', args)
+            # ExecStopPost can fail cleanup and retry without losing the request.
+            request()
+            result = subprocess.run([script, '_record'],
+                                    env=dict(env, TEST_CLEANUP_FAIL='1'),
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            cleanup = subprocess.run([script, '_cleanup'], env=dict(env, TEST_CLEANUP_FAIL='1'),
+                                     capture_output=True, text=True)
+            self.assertNotEqual(cleanup.returncode, 0)
+            self.assertTrue((runtime / 'desktop-record/request').exists())
+            cleanup = subprocess.run([script, '_cleanup'], env=env, capture_output=True, text=True)
+            self.assertEqual(cleanup.returncode, 0, cleanup.stderr)
+            self.assertFalse((runtime / 'desktop-record/pid').exists())
             result = subprocess.run([script, 'status'],
                                     env=dict(env, DESKTOP_RECORD_ENCODER='unknown'), capture_output=True)
             self.assertEqual(result.returncode, 2)

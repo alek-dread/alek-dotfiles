@@ -1,0 +1,6 @@
+#!/bin/sh
+image="$HOME/.local/share/wallpapers/current"
+if [ -f "$image" ]; then
+    exec /usr/bin/swaybg -i "$image" -m fill
+fi
+exec /usr/bin/swaybg -c '#282828'

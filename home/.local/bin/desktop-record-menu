@@ -4,6 +4,7 @@ import argparse
 import fcntl
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -101,16 +102,43 @@ def modules():
     return entries
 
 
+def audio_state(path, entries):
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix='.audio-')
+    try:
+        with os.fdopen(fd, 'w') as file:
+            json.dump(entries, file)
+        os.replace(name, path)
+    finally:
+        Path(name).unlink(missing_ok=True)
+
+
 def cleanup(path):
-    if not path.exists():
-        return
-    saved = json.loads(path.read_text())
+    try:
+        saved = json.loads(path.read_text()) if path.exists() else []
+    except ValueError:
+        saved = []  # Recover modules even if an old non-atomic state was truncated.
     current = modules()
-    for entry in reversed(saved):
+    owned = {entry['id']: entry for entry in saved
+             if isinstance(entry, dict) and 'id' in entry}
+    # A worker may die after load-module succeeded but before its ID was saved.
+    # This namespace is reserved for this single supervised recorder.
+    for entry in current.values():
+        if (entry['name'] in ('module-null-sink', 'module-loopback')
+                and re.search(r'(?:^|\s)sink(?:_name)?=desktop_record_mix_[0-9]+(?:\s|$)',
+                              entry['argument'])):
+            owned[entry['id']] = entry
+    failed = []
+    for entry in sorted(owned.values(), key=lambda e: e['name'] == 'module-null-sink'):
         module = current.get(entry['id'])
         # Check identity as module indices can be reused after a server restart.
         if module and module['name'] == entry['name'] and module['argument'] == entry['argument']:
-            run('pactl', 'unload-module', entry['id'])
+            try:
+                run('pactl', 'unload-module', entry['id'])
+            except (OSError, RuntimeError, subprocess.TimeoutExpired):
+                failed.append(entry)
+    if failed:
+        audio_state(path, failed)
+        raise RuntimeError('Could not remove all recording audio modules; cleanup will be retried.')
     path.unlink(missing_ok=True)
 
 
@@ -123,7 +151,7 @@ def prepare(path):
         module_id = run('pactl', 'load-module', name, *args)
         module = modules()[module_id]
         loaded.append(module)
-        path.write_text(json.dumps(loaded))
+        audio_state(path, loaded)
 
     try:
         mode = config['audio']
@@ -176,7 +204,7 @@ def menu():
         return
     config = settings()
     while True:
-        recording = run(RECORDER, 'status') == 'recording'
+        recording = run(RECORDER, 'status') != 'idle'
         rows = ['Audio: ' + MODES[config['audio']],
                 'Microphone: ' + label(config['microphone'], microphones(), 'source'),
                 'System audio: ' + label(config['output'], devices('sinks'), 'sink'),

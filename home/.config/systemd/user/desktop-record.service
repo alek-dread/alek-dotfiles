@@ -1,0 +1,13 @@
+[Unit]
+Description=Screen recording
+PartOf=graphical-session.target
+After=graphical-session.target pipewire-pulse.service
+
+[Service]
+Type=exec
+ExecStart=%h/.local/bin/desktop-record _record
+ExecStopPost=%h/.local/bin/desktop-record _cleanup
+KillMode=mixed
+TimeoutStopSec=20
+UMask=0077
+Slice=app.slice

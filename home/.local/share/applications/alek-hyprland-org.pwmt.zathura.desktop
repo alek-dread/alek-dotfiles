@@ -1,11 +1,15 @@
 [Desktop Entry]
+OnlyShowIn=Hyprland;
 Version=1.0
 Type=Application
 Name=Zathura
 Comment=Minimalistic document viewer
 Exec="/home/alek/.local/bin/desktop-document-viewer" %U
+# Translators: Icon of the desktop entry.
 Icon=org.pwmt.zathura
 Terminal=false
 Categories=Office;Viewer;
+# Translators: Search terms to find this application. Do not translate or
+# localize the semicolons. The list must also end with a semicolon.
 Keywords=PDF;PS;PostScript;DjVU;document;presentation;viewer;
 MimeType=application/pdf;application/x-bzpdf;application/x-ext-pdf;application/x-gzpdf;application/x-xzpdf;image/vnd.djvu;image/vnd.djvu+multipage;application/x-ext-djv;application/x-ext-djvu;application/vnd.comicbook-rar;application/vnd.comicbook+zip;application/x-cb7;application/x-cbr;application/x-cbt;application/x-cbz;application/x-ext-cb7;application/x-ext-cbr;application/x-ext-cbt;application/x-ext-cbz;

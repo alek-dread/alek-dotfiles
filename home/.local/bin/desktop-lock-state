@@ -13,6 +13,8 @@ def output(*args):
 def main():
     if sys.argv[1:] not in (['locked'], ['unlocked']):
         raise RuntimeError('Usage: desktop-lock-state locked|unlocked')
+    subprocess.run(['makoctl', 'mode', '-a' if sys.argv[1] == 'locked' else '-r',
+                    'locked'], check=True, timeout=5)
     candidates = []
     for session in json.loads(output('loginctl', 'list-sessions', '--json=short')):
         if session.get('uid') != os.getuid() or not session.get('seat'):

@@ -20,6 +20,46 @@ def load(name, path):
 ws = load('workspace_test', ROOT / 'home/.local/libexec/waybar-workspace')
 wall = load('wallpaper_test', ROOT / 'home/.local/bin/desktop-wallpaper')
 lock = load('lock_test', ROOT / 'home/.local/bin/desktop-lock-state')
+record = load('record_test', ROOT / 'home/.local/bin/desktop-record-menu')
+
+
+class RecordingCleanup(unittest.TestCase):
+    def test_one_unload_failure_does_not_skip_other_modules_and_can_retry(self):
+        entries = [dict(id=str(n), name='module-loopback', argument=f'source={n}')
+                   for n in range(1, 4)]
+        current = {entry['id']: entry for entry in entries}
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / 'audio.json'
+            state.write_text(json.dumps(entries))
+            def unload(*args):
+                if args[-1] == '3':
+                    raise RuntimeError('simulated audio-server failure')
+            with patch.object(record, 'modules', return_value=current), \
+                    patch.object(record, 'run', side_effect=unload) as run:
+                with self.assertRaisesRegex(RuntimeError, 'cleanup will be retried'):
+                    record.cleanup(state)
+                self.assertEqual([call.args[-1] for call in run.call_args_list], ['1', '2', '3'])
+            self.assertEqual(json.loads(state.read_text()), [entries[2]])
+            with patch.object(record, 'modules', return_value=current), patch.object(record, 'run') as run:
+                record.cleanup(state)
+                run.assert_called_once_with('pactl', 'unload-module', '3')
+            self.assertFalse(state.exists())
+
+
+    def test_orphan_cleanup_recovers_only_recorder_modules(self):
+        entries = [
+            dict(id='7', name='module-null-sink', argument='sink_name=desktop_record_mix_123'),
+            dict(id='8', name='module-loopback', argument='source=mic sink=desktop_record_mix_123'),
+            dict(id='9', name='module-loopback', argument='source=mic sink=music'),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / 'audio.json'
+            state.write_text('{truncated')
+            with patch.object(record, 'modules', return_value={e['id']: e for e in entries}), \
+                    patch.object(record, 'run') as run:
+                record.cleanup(state)
+                self.assertEqual([call.args[-1] for call in run.call_args_list], ['8', '7'])
+            self.assertFalse(state.exists())
 
 
 class Workspaces(unittest.TestCase):
@@ -100,14 +140,15 @@ class LockState(unittest.TestCase):
     def test_selects_real_wayland_login_not_uwsm_manager(self):
         sessions=[{'session':'2','uid':os.getuid(),'seat':'seat0'}, {'session':'3','uid':os.getuid(),'seat':None}]
         replies=[json.dumps(sessions),'Type=wayland\nRemote=no','o "/org/freedesktop/login1/session/_32"','']
-        with patch.object(lock,'output',side_effect=replies) as output,patch('sys.argv',['desktop-lock-state','locked']):
+        with patch.object(lock.subprocess, 'run') as notify, patch.object(lock,'output',side_effect=replies) as output,patch('sys.argv',['desktop-lock-state','locked']):
             lock.main()
+        notify.assert_called_once_with(['makoctl', 'mode', '-a', 'locked'], check=True, timeout=5)
         self.assertIn('SetLockedHint',output.call_args.args)
         self.assertEqual(output.call_args.args[-2:],('b','true'))
 
     def test_ambiguous_login_never_changes_hint(self):
         sessions=[{'session':'2','uid':os.getuid(),'seat':'seat0'},{'session':'4','uid':os.getuid(),'seat':'seat1'}]
-        with patch.object(lock,'output',side_effect=[json.dumps(sessions),'Type=wayland\nRemote=no','Type=wayland\nRemote=no']) as output, \
+        with patch.object(lock.subprocess, 'run'), patch.object(lock,'output',side_effect=[json.dumps(sessions),'Type=wayland\nRemote=no','Type=wayland\nRemote=no']) as output, \
              patch('sys.argv',['desktop-lock-state','unlocked']):
             with self.assertRaisesRegex(RuntimeError,'one local Wayland'):lock.main()
             self.assertFalse(any('SetLockedHint' in c.args for c in output.call_args_list))

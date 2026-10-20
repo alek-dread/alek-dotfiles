@@ -1,8 +1,10 @@
 [Desktop Entry]
+OnlyShowIn=Hyprland;
 Name=Nemo
 Comment=Access and organize files
 Exec="/home/alek/.local/bin/desktop-file-manager" %U
 Icon=system-file-manager
+# Translators: these are keywords of the file manager
 Keywords=folders;filesystem;explorer;
 Terminal=false
 Type=Application

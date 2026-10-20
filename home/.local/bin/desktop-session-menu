@@ -2,16 +2,10 @@
 set -eu
 export LANGUAGE=en LC_ALL=C.UTF-8
 
-suspend=$(busctl --system --timeout=2 call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanSuspend 2>/dev/null || true)
-rows=$(printf '%s\n' 'Lock'
-    case "$suspend" in 's "yes"' | 's "challenge"') printf '%s\n' 'Suspend' ;; esac
-    printf '%s\n' 'Log out' 'Reboot' 'Power off')
-lines=$(printf '%s\n' "$rows" | wc -l)
-action=$(printf '%s\n' "$rows" | fuzzel --dmenu --prompt='Session > ' --lines="$lines") || exit 0
+action=$(printf '%s\n' 'Lock' 'Log out' 'Reboot' 'Power off' | fuzzel --dmenu --prompt='Session > ' --lines=4) || exit 0
 
 case "$action" in
     Lock) loginctl lock-session ;;
-    Suspend) systemctl suspend ;;
     'Log out' | Reboot | 'Power off')
         answer=$(printf '%s\n' 'Cancel' 'Confirm' | fuzzel --dmenu --prompt="$action > " --lines=2) || exit 0
         [ "$answer" = Confirm ] || exit 0

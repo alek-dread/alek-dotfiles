@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 import os
+from collections import deque
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import threading
@@ -64,14 +66,36 @@ def perform(command, directory, creating):
     box.pack_start(spinner, False, False, 0)
     box.pack_start(Gtk.Label(label='Creating archive...' if creating else 'Extracting archive...'), False, False, 0)
     window.add(box)
-    window.connect('delete-event', lambda *_: True)
-    window.show_all()
     result = [1]
+    cancelled = threading.Event()
+    child = [None]
+    child_lock = threading.Lock()
+
+    def cancel(*_):
+        cancelled.set()
+        with child_lock:
+            process = child[0]
+            if process is not None and process.poll() is None:
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+        cancel_button.set_sensitive(False)
+        return True
+
+    cancel_button = Gtk.Button(label='Cancel')
+    cancel_button.connect('clicked', cancel)
+    box.pack_start(cancel_button, False, False, 0)
+    window.connect('delete-event', cancel)
+    window.show_all()
 
     def finished(returncode, output):
         window.destroy()
         result[0] = returncode
-        if returncode:
+        if cancelled.is_set():
+            subprocess.run(['notify-send', 'Archive operation cancelled',
+                            'Partial files may remain in the destination folder.'], check=False)
+        elif returncode:
             message(output[-1800:] or 'The operation could not be completed. Open encrypted archives in Xarchiver.')
         else:
             subprocess.run(['notify-send', 'Archive created' if creating else 'Archive extracted', str(directory)], check=False)
@@ -80,9 +104,36 @@ def perform(command, directory, creating):
 
     def worker():
         try:
-            process = subprocess.run(command, cwd=directory, stdin=subprocess.DEVNULL,
-                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
-            GLib.idle_add(finished, process.returncode, process.stdout)
+            with child_lock:
+                if cancelled.is_set():
+                    GLib.idle_add(finished, 130, '')
+                    return
+                process = subprocess.Popen(command, cwd=directory, stdin=subprocess.DEVNULL,
+                                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                           start_new_session=True)
+                child[0] = process
+            # Keep only the last 256 KiB even if an archive tool floods its output.
+            tail = deque(maxlen=64)
+
+            def force_stop():
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+            def stop_when_cancelled():
+                cancelled.wait()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    force_stop()
+
+            threading.Thread(target=stop_when_cancelled, daemon=True).start()
+            while chunk := process.stdout.read(4096):
+                tail.append(chunk)
+            process.wait()
+            process.stdout.close()
+            GLib.idle_add(finished, process.returncode, b''.join(tail).decode(errors='replace'))
         except OSError as error:
             GLib.idle_add(finished, 1, str(error))
 

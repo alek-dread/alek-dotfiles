@@ -32,7 +32,6 @@ NetworkManager-tui
 pipewire
 pipewire-pulseaudio
 wireplumber
-arc-theme
 paper-icon-theme
 adwaita-icon-theme
 adwaita-cursor-theme

@@ -1,0 +1,2 @@
+#!/bin/sh
+exec "$HOME/.local/bin/desktop-terminal" -e less "$HOME/.config/hypr/KEYS.txt"

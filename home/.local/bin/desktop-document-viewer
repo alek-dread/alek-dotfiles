@@ -4,18 +4,40 @@ import gzip
 import lzma
 import os
 from pathlib import Path
-import shutil
+import resource
 import subprocess
 import sys
 import tempfile
 from urllib.parse import unquote, urlsplit
 
+MAX_PDF_BYTES = 256 * 1024 * 1024
+MAX_TOTAL_BYTES = 512 * 1024 * 1024
+
+
+def decompress(source, target):
+    """Decode in a separate process with disk, CPU, memory and wall time limits."""
+    resource.setrlimit(resource.RLIMIT_AS, (1024 * 1024 * 1024,) * 2)
+    resource.setrlimit(resource.RLIMIT_CPU, (30, 30))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_PDF_BYTES,) * 2)
+    readers = {'.gz': gzip.open, '.bz2': bz2.open, '.xz': lzma.open}
+    size = 0
+    with readers[source.suffix.lower()](source, 'rb') as incoming, target.open('xb') as output:
+        while chunk := incoming.read(1024 * 1024):
+            size += len(chunk)
+            if size > MAX_PDF_BYTES:
+                raise ValueError('The decompressed PDF exceeds the 256 MiB safety limit.')
+            output.write(chunk)
+
 
 def main():
+    if sys.argv[1:2] == ['--decode-worker']:
+        decompress(Path(sys.argv[2]), Path(sys.argv[3]))
+        return 0
     os.environ["LANGUAGE"] = "en"
     os.environ["LC_MESSAGES"] = "en_US.UTF-8"
     with tempfile.TemporaryDirectory(prefix="zathura-") as directory:
         arguments = []
+        total = 0
         for number, argument in enumerate(sys.argv[1:]):
             if argument.startswith("file://"):
                 uri = urlsplit(argument)
@@ -32,19 +54,26 @@ def main():
             if opener is not None:
                 target = Path(directory) / str(number) / path.stem
                 target.parent.mkdir()
-                with opener(path, "rb") as source, target.open("wb") as output:
-                    shutil.copyfileobj(source, output)
+                result = subprocess.run([sys.executable, str(Path(__file__).resolve()),
+                                         '--decode-worker', str(path), str(target)],
+                                        capture_output=True, text=True, timeout=45)
+                if result.returncode:
+                    raise ValueError('Compressed PDF could not be decoded within the safety limits.')
+                total += target.stat().st_size
+                if total > MAX_TOTAL_BYTES:
+                    raise ValueError('The selected compressed PDFs exceed the 512 MiB safety limit.')
                 arguments.append(str(target))
             else:
                 arguments.append(argument)
-        return subprocess.call(["/usr/bin/zathura", *arguments])
+        return subprocess.call(["/usr/bin/zathura", "--config-dir", str(Path.home() / ".config/alek-hyprland/zathura"), *arguments])
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except (OSError, EOFError, lzma.LZMAError) as error:
+    except (OSError, EOFError, ValueError, MemoryError, lzma.LZMAError, subprocess.TimeoutExpired) as error:
         message = f"Could not open document: {error}"
         print(message, file=sys.stderr)
-        subprocess.run(["notify-send", "Zathura", message], check=False)
+        if sys.argv[1:2] != ['--decode-worker']:
+            subprocess.run(["notify-send", "Zathura", message], check=False)
         sys.exit(1)

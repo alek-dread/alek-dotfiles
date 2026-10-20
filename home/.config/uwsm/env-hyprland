@@ -1,6 +1,13 @@
+# These variables apply only to the Hyprland UWSM session.
+export PATH="$HOME/.local/bin:$PATH"
+export XCURSOR_THEME=Adwaita
+export XCURSOR_SIZE=24
 export HYPRCURSOR_THEME=Adwaita
 export HYPRCURSOR_SIZE=24
 export QT_QPA_PLATFORMTHEME=gtk3
+export GTK_THEME=Adwaita:dark
+export LANGUAGE=en
+export LC_MESSAGES=en_US.UTF-8
 
 # Optional device-specific settings, preserved by the installer.
 if [ -r "${XDG_CONFIG_HOME:-$HOME/.config}/uwsm/env-hyprland.local" ]; then

@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Hyprland (Alek)
+Comment=Hyprland desktop managed by UWSM
+Exec=/usr/bin/uwsm start -e -D Hyprland hyprland.desktop
+Type=Application
+DesktopNames=Hyprland

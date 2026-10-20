@@ -1,83 +1,75 @@
+/* Graphite Rhythm — geometry and color roles: ~/.config/desktop-design/DESIGN.md
+ * Unit 4px; optical half-step 2px; compact row 28px; icons 16px.
+ * Flat, edge-to-edge surfaces. Focus is gold; secondary information is mauve. */
+@define-color surface #282828;
+@define-color occupied #323230;
+@define-color raised #353432;
+@define-color edge #504945;
+@define-color text #d4c7ad;
+@define-color quiet #a89984;
+@define-color accent #c1a16b;
+@define-color connected #a3a878;
+@define-color mauve #b3919e;
+@define-color alert #d39a8b;
+
 * {
-    font-family: "Iosevka Aile";
+    font-family: "Iosevka Aile", "IosevkaTerm Nerd Font Mono";
     font-size: 14px;
+    font-weight: 400;
     border: none;
     border-radius: 0;
     min-height: 0;
+    box-shadow: none;
+    text-shadow: none;
+    transition: none;
+    animation: none;
 }
 
-window#waybar {
-    background: #282828;
-    color: #d4c7ad;
-}
+window#waybar { background: @surface; color: @text; }
+.modules-right { margin-right: 4px; }
 
 #workspaces .workspace {
-    font-weight: 700;
-    padding: 0 12px;
-    min-width: 0;
-    color: #928374;
-    background-color: transparent;
+    min-width: 24px;
+    padding: 0;
+    margin: 0;
+    color: @quiet;
+    background: transparent;
 }
-
 #workspaces .workspace.occupied {
-    color: #8caaa0;
-    background-color: #3c3836;
+    background: @occupied;
+    color: @text;
+    font-weight: 700;
 }
-
-#workspaces .workspace:hover {
-    background-color: #504945;
-}
-
+#workspaces .workspace:hover { background: @raised; color: @text; }
 #workspaces .workspace.active {
-    background-color: #8caaa0;
-    color: #282828;
+    background: @accent;
+    color: @surface;
+    font-weight: 700;
 }
-
 #workspaces .workspace.urgent {
-    background-color: #b8796c;
-    color: #282828;
+    background: @alert;
+    color: @surface;
+    font-weight: 700;
 }
 
 #window {
-    color: #a89984;
+    padding: 0 12px;
+    border-left: 1px solid @edge;
+    color: @quiet;
 }
+window#waybar.empty #window { padding: 0; border: none; }
+#clock { padding: 0 12px; color: @text; }
+#tray { padding: 0 6px; }
+#language, #pulseaudio, #network { margin: 0; padding: 0 6px; }
+#language { color: @mauve; }
+#pulseaudio { color: @text; }
+#network { color: @connected; min-width: 16px; }
+#pulseaudio:hover, #network:hover { background: @raised; }
+#pulseaudio.muted { color: @quiet; }
+#network.disconnected, #network.disabled { color: @alert; }
 
-#tray,
-#language,
-#pulseaudio,
-#network,
-#clock {
-    font-weight: 700;
-    padding: 0 9px;
-}
-
-#tray {
-    color: #d4c7ad;
-}
-
-#language {
-    color: #b3919e;
-}
-
-#pulseaudio {
-    color: #c1a16b;
-}
-
-#network {
-    color: #8caaa0;
-}
-
-#clock {
-    color: #8c9c91;
-}
-
-#pulseaudio.muted,
-#network.disconnected {
-    color: #b8796c;
-}
-
-tooltip {
-    background: #32302f;
-    color: #d4c7ad;
-    border: 1px solid #504945;
-}
+tooltip { background: @surface; color: @text; border: 1px solid @edge; }
+tooltip label { padding: 8px 12px; }
+menu { background: @surface; color: @text; border: 1px solid @edge; padding: 4px; }
+menuitem { padding: 6px 12px; }
+menuitem:hover { background: @raised; }
