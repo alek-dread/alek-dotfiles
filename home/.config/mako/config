@@ -1,8 +1,8 @@
-# Graphite Rhythm: 90u popup width; 3u / 4u content padding; compact 8u icons.
+# Arthur: 90u popup width; 3u / 4u content padding; compact 8u icons.
 font=Iosevka Aile 11
-background-color=#282828
-text-color=#d4c7ad
-border-color=#504945
+background-color=#1c1c1c
+text-color=#ddeedd
+border-color=#554444
 border-size=1
 border-radius=0
 width=360
@@ -16,7 +16,7 @@ max-visible=3
 max-history=20
 
 [urgency=critical]
-border-color=#d39a8b
+border-color=#cd5c5c
 default-timeout=0
 
 [mode=locked]

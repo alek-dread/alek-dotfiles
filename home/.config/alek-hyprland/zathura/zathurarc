@@ -1,42 +1,43 @@
+# Arthur beige: cream document/UI text; original document hues are not retained.
 set font "Adwaita Mono 11"
 set adjust-open "width"
 set selection-clipboard "clipboard"
 set statusbar-basename true
 set window-title-basename true
 
-set default-bg "#282828"
-set default-fg "#d4c7ad"
-set statusbar-bg "#32302f"
-set statusbar-fg "#d4c7ad"
-set inputbar-bg "#32302f"
-set inputbar-fg "#d4c7ad"
+set default-bg "#1c1c1c"
+set default-fg "#ddccbb"
+set statusbar-bg "#3d352a"
+set statusbar-fg "#ddccbb"
+set inputbar-bg "#3d352a"
+set inputbar-fg "#ddccbb"
 
-set completion-bg "#282828"
-set completion-fg "#d4c7ad"
-set completion-group-bg "#32302f"
-set completion-group-fg "#c1a16b"
-set completion-highlight-bg "#c1a16b"
-set completion-highlight-fg "#282828"
+set completion-bg "#1c1c1c"
+set completion-fg "#ddccbb"
+set completion-group-bg "#3d352a"
+set completion-group-fg "#bbaa99"
+set completion-highlight-bg "#bbaa99"
+set completion-highlight-fg "#1c1c1c"
 
-set index-bg "#282828"
-set index-fg "#d4c7ad"
-set index-active-bg "#c1a16b"
-set index-active-fg "#282828"
+set index-bg "#1c1c1c"
+set index-fg "#ddccbb"
+set index-active-bg "#bbaa99"
+set index-active-fg "#1c1c1c"
 
-set notification-bg "#32302f"
-set notification-fg "#d4c7ad"
-set notification-error-bg "#b3919e"
-set notification-error-fg "#282828"
-set notification-warning-bg "#b3919e"
-set notification-warning-fg "#282828"
+set notification-bg "#3d352a"
+set notification-fg "#ddccbb"
+set notification-error-bg "#deb887"
+set notification-error-fg "#1c1c1c"
+set notification-warning-bg "#deb887"
+set notification-warning-fg "#1c1c1c"
 
-set highlight-color "rgba(140,170,160,0.4)"
-set highlight-active-color "rgba(179,145,158,0.6)"
+set highlight-color "rgba(222,184,135,0.4)"
+set highlight-active-color "rgba(222,184,135,0.6)"
 
 set recolor true
-set recolor-lightcolor "#282828"
-set recolor-darkcolor "#d4c7ad"
-set recolor-keephue true
+set recolor-lightcolor "#1c1c1c"
+set recolor-darkcolor "#ddccbb"
+set recolor-keephue false
 set recolor-reverse-video true
 
 set scroll-hstep 40

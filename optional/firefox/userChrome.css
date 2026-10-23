@@ -1,0 +1,20 @@
+/* Only soften Firefox's native corner radii. Keep native colors, type and layout. */
+:root {
+  --tab-border-radius: 3px !important;
+  --toolbarbutton-border-radius: 3px !important;
+  --arrowpanel-border-radius: 4px !important;
+  --panel-border-radius: 4px !important;
+  --button-border-radius: 3px !important;
+}
+.tab-background { border-radius: 3px !important; }
+#urlbar {
+  --urlbar-border-radius: 4px !important;
+  --urlbarview-border-radius: 4px !important;
+  --urlbar-background-border-radius: 4px !important;
+}
+#urlbar-background, .urlbar-background, #searchbar {
+  border-radius: 4px !important;
+}
+.urlbarView, .urlbarView-body-inner { border-radius: 4px !important; }
+.urlbarView-row-inner, .subviewbutton { border-radius: 3px !important; }
+panel, panelmultiview, panelview, menupopup { border-radius: 4px !important; }

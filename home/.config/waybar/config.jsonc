@@ -1,7 +1,7 @@
 {
     "layer": "top",
     "position": "top",
-    "height": 24,
+    "height": 26,
     "spacing": 0,
     "modules-left": [
         "group/workspaces",
@@ -28,13 +28,13 @@
     },
     "hyprland/language": {
         "format": "{}",
-        "format-en": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>  EN",
-        "format-ru": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>  RU",
+        "format-en": "EN",
+        "format-ru": "RU",
         "tooltip": false
     },
     "pulseaudio": {
-        "format": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\">{icon}</span>  {volume}%",
-        "format-muted": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>  {volume}%",
+        "format": "VOL {volume}%",
+        "format-muted": "MUTE {volume}%",
         "scroll-step": 5,
         "max-volume": 100,
         "on-click": "uwsm app -- pavucontrol",
@@ -47,27 +47,27 @@
         ]
     },
     "network": {
-        "format-ethernet": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>",
-        "format-wifi": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>  {signalStrength}%",
-        "format-disconnected": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>",
+        "format-ethernet": "NET",
+        "format-wifi": "WLAN {signalStrength}%",
+        "format-disconnected": "OFFLINE",
         "tooltip-format": "{ifname}: {ipaddr}\n{essid}",
-        "on-click": "uwsm app -- alacritty -e nmtui",
+        "on-click": "uwsm app -- desktop-terminal -e nmtui",
         "tooltip-format-ethernet": "{ifname} · {ipaddr}",
         "tooltip-format-wifi": "{essid} · {signalStrength}%\n{ifname} · {ipaddr}",
         "tooltip-format-disconnected": "No network connection",
-        "format-disabled": "<span font_family=\"IosevkaTerm Nerd Font Propo\" size=\"12288\"></span>"
+        "format-disabled": "NET OFF"
     },
     "clock": {
-        "format": "<b>{0:%H:%M}</b>  <span color=\"#a89984\">{0:%a, %d %b}</span>",
+        "format": "<b>{0:%H:%M}</b>  <span color=\"#bbaa99\">{0:%a %d %b}</span>",
         "tooltip-format": "<span font_family=\"IosevkaTerm Nerd Font Mono\">{calendar}</span>",
         "locale": "en_GB.UTF-8",
         "calendar": {
             "mode": "month",
             "format": {
-                "months": "<span color=\"#d4c7ad\"><b>{}</b></span>",
-                "days": "<span color=\"#d4c7ad\">{}</span>",
-                "weekdays": "<span color=\"#a89984\">{}</span>",
-                "today": "<span color=\"#c1a16b\"><b><u>{}</u></b></span>"
+                "months": "<span color=\"#ddeedd\"><b>{}</b></span>",
+                "days": "<span color=\"#ddeedd\">{}</span>",
+                "weekdays": "<span color=\"#bbaa99\">{}</span>",
+                "today": "<span color=\"#bbaa99\"><b><u>{}</u></b></span>"
             }
         }
     },

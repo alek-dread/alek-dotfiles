@@ -1,0 +1,38 @@
+* {
+    font-family: "Iosevka Aile", "sans-serif";
+    font-size: 15px;
+    border-radius: 0;
+    box-shadow: none;
+    text-shadow: none;
+    transition: none;
+    animation: none;
+}
+window { background-image: none; background-color: #1c1c1c; color: #ddeedd; }
+#eyebrow { color: #87ceeb; font-size: 13px; }
+#clock, #shortcuts { color: #bbaa99; font-size: 13px; }
+box#body { background-color: #1c1c1c; border: 1px solid #4d4d4d; padding: 20px 22px 16px; }
+#field-label { color: #bbaa99; }
+entry { background-image: none; background-color: transparent; color: #ddeedd; border: 0; border-bottom: 1px solid #4d4d4d; padding: 3px 0; min-height: 25px; caret-color: #bbaa99; }
+entry:focus { border-bottom-color: #bbaa99; }
+entry selection { background-color: #bbaa99; color: #1c1c1c; }
+entry image { color: #bbaa99; padding-left: 8px; }
+button { background-image: none; background-color: transparent; color: #bbaa99; border: 1px solid transparent; padding: 5px 9px; min-height: 20px; }
+button label { color: inherit; }
+button:hover { color: #ddeedd; background-color: #3d352a; }
+button:focus { border-color: #bbaa99; }
+button:active { background-color: #4d4d4d; }
+button.suggested-action { color: #bbaa99; }
+button.suggested-action:hover { background-color: #bbaa99; color: #1c1c1c; }
+combobox button { padding: 3px 0; color: #ddeedd; }
+combobox arrow { color: #bbaa99; min-width: 12px; min-height: 12px; }
+combobox cellview { padding: 0; }
+menu { background-color: #1c1c1c; color: #ddeedd; border: 1px solid #4d4d4d; }
+menuitem { padding: 6px 12px; }
+menuitem:hover { background-color: #bbaa99; color: #1c1c1c; }
+#power button { font-size: 13px; color: #bbaa99; }
+#power button:hover, #power button:focus { color: #bbaa99; }
+#error { color: #cd5c5c; font-size: 13px; }
+messagedialog .dialog-vbox { padding: 20px; }
+
+/* Only the version caption and pixel wordmark use Arthur sky-blue. */
+#fedora-wordmark { color: #87ceeb; }

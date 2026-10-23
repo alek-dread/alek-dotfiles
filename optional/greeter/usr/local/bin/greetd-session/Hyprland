@@ -1,0 +1,7 @@
+#!/bin/sh
+# greetd must invoke this absolute path: its greeter PATH is not the login PATH.
+PATH=/usr/local/bin:/usr/bin:/bin
+export PATH
+# Greeter-only rendering choices must not affect desktop applications.
+unset WLR_RENDERER WLR_NO_HARDWARE_CURSORS
+exec /usr/bin/uwsm start -e -D Hyprland hyprland.desktop

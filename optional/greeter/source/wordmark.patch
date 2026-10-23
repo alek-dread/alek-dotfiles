@@ -1,0 +1,31 @@
+--- a/gtkgreet/window.c
++++ b/gtkgreet/window.c
+@@ -58,7 +58,7 @@
+ }
+ 
+ static gboolean draw_wordmark(GtkWidget *widget, cairo_t *cr, gpointer data) {
+-    /* FEDORA, using the same 5x7 pixel alphabet and colors. */
++    /* FEDORA: preserve pixel geometry; obtain the color from GTK CSS. */
+     static const unsigned char glyphs[6][7] = {
+         {31,16,16,30,16,16,16}, {31,16,16,30,16,16,31},
+         {30,17,17,17,17,17,30}, {14,17,17,17,17,17,14},
+@@ -67,7 +67,10 @@
+     const int cell = 8, width = 35 * cell;
+     const int x = (gtk_widget_get_allocated_width(widget) - width) / 2;
+     cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
+-    cairo_set_source_rgb(cr, 193.0/255, 161.0/255, 107.0/255);
++    GdkRGBA color;
++    gtk_style_context_get_color(gtk_widget_get_style_context(widget),
++                                gtk_widget_get_state_flags(widget), &color);
++    gdk_cairo_set_source_rgba(cr, &color);
+     for (int letter = 0; letter < 6; letter++) {
+         for (int row = 0; row < 7; row++) {
+             for (int col = 0; col < 5; col++) {
+@@ -309,6 +312,7 @@
+         gtk_widget_set_margin_bottom(eyebrow, 18);
+         gtk_container_add(GTK_CONTAINER(ctx->window_box), eyebrow);
+         GtkWidget *wordmark = gtk_drawing_area_new();
++        gtk_widget_set_name(wordmark, "fedora-wordmark");
+         gtk_widget_set_size_request(wordmark, 376, 56);
+         gtk_widget_set_margin_bottom(wordmark, 42);
+         atk_object_set_name(gtk_widget_get_accessible(wordmark), "Fedora");

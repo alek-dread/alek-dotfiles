@@ -1,16 +1,16 @@
-/* Graphite Rhythm — geometry and color roles: ~/.config/desktop-design/DESIGN.md
- * Unit 4px; optical half-step 2px; compact row 28px; icons 16px.
- * Flat, edge-to-edge surfaces. Focus is gold; secondary information is mauve. */
-@define-color surface #282828;
-@define-color occupied #323230;
-@define-color raised #353432;
-@define-color edge #504945;
-@define-color text #d4c7ad;
-@define-color quiet #a89984;
-@define-color accent #c1a16b;
-@define-color connected #a3a878;
-@define-color mauve #b3919e;
-@define-color alert #d39a8b;
+/* Arthur — geometry and color roles: ~/.config/desktop-design/DESIGN.md
+ * Unit 4px; optical half-step 2px; panel row 26px; icons 16px.
+ * Flat, edge-to-edge surfaces. Focus is gray-beige; secondary accent is sand. */
+@define-color surface #1c1c1c;
+@define-color occupied #3d352a;
+@define-color raised #3d352a;
+@define-color edge #4d4d4d;
+@define-color text #ddeedd;
+@define-color quiet #bbaa99;
+@define-color accent #bbaa99;
+@define-color connected #86af80;
+@define-color mauve #deb887;
+@define-color alert #cd5c5c;
 
 * {
     font-family: "Iosevka Aile", "IosevkaTerm Nerd Font Mono";
@@ -25,11 +25,17 @@
     animation: none;
 }
 
-window#waybar { background: @surface; color: @text; }
+window#waybar {
+    background: @surface;
+    color: @text;
+    border: none;
+    box-shadow: none;
+}
 .modules-right { margin-right: 4px; }
+.modules-right, .modules-right * { font-weight: 700; }
 
 #workspaces .workspace {
-    min-width: 24px;
+    min-width: 26px;
     padding: 0;
     margin: 0;
     color: @quiet;
@@ -37,10 +43,14 @@ window#waybar { background: @surface; color: @text; }
 }
 #workspaces .workspace.occupied {
     background: @occupied;
-    color: @text;
+    color: #ddeedd;
     font-weight: 700;
 }
 #workspaces .workspace:hover { background: @raised; color: @text; }
+#workspaces .workspace.occupied:hover:not(.active):not(.urgent) {
+    background: #4d4d4d;
+    color: #ddeedd;
+}
 #workspaces .workspace.active {
     background: @accent;
     color: @surface;

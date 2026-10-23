@@ -1,0 +1,8 @@
+/* Disable decorative effects, including shadows drawn by client toolkits. */
+* {
+    box-shadow: none;
+    text-shadow: none;
+    -gtk-icon-shadow: none;
+    transition: none;
+    animation: none;
+}

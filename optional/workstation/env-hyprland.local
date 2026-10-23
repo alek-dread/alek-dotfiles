@@ -1,0 +1,5 @@
+# RX470 VCE timed out and reset the GPU during recording on 2026-10-17.
+# Use CPU encoding; keep screen recording away from the VCE hardware path.
+export DESKTOP_RECORD_ENCODER=software
+export DESKTOP_RECORD_DISABLE_VAAPI=1
+unset DESKTOP_RECORD_DEVICE

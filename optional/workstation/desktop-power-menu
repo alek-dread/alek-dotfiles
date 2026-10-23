@@ -1,0 +1,101 @@
+#!/usr/bin/python3
+"""Select the desktop's three TuneD/LACT profiles using fuzzel."""
+import argparse
+import fcntl
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+import yaml
+
+PROFILES = (
+    ('eco', 'xeon-eco', 'Power Saver'),
+    ('balanced', 'xeon-balanced', 'Balanced'),
+    ('performance', 'xeon-performance', 'Performance'),
+)
+
+def notify(message, error=False):
+    subprocess.run(['notify-send', '--app-name=Power Modes',
+                    '--urgency=' + ('critical' if error else 'normal'),
+                    'Power Modes', message], check=False)
+
+def active():
+    return Path('/etc/tuned/active_profile').read_text().strip()
+
+def expected_gpu_levels(name):
+    # LACT owns GPU settings; users can change them independently of TuneD.
+    config = yaml.safe_load(Path('/etc/lact/config.yaml').read_text())
+    try:
+        gpus = config['profiles'][name]['gpus']
+    except (KeyError, TypeError):
+        raise RuntimeError(f'LACT profile {name} is missing its GPU settings.') from None
+    if not gpus:
+        raise RuntimeError(f'LACT profile {name} has no configured GPUs.')
+    return [(Path('/sys/bus/pci/devices') / gpu_id.rsplit('-', 1)[-1]
+             / 'power_dpm_force_performance_level',
+             settings.get('performance_level', 'auto'))
+            for gpu_id, settings in gpus.items()]
+
+def switch(profile):
+    _, name, label = profile
+    gpu_levels = expected_gpu_levels(name)
+    result = subprocess.run(['tuned-adm', 'profile', name],
+                            capture_output=True, text=True, timeout=45,
+                            env={**os.environ, 'LC_ALL': 'C'})
+    if result.returncode:
+        raise RuntimeError((result.stderr or result.stdout).strip() or 'TuneD could not switch the profile.')
+    # TuneD scripts and LACT must finish before reporting success.
+    for _ in range(20):
+        lact = subprocess.run(['lact', 'cli', 'profile', 'get'],
+                              capture_output=True, text=True, timeout=10,
+                              env={**os.environ, 'LC_ALL': 'C'})
+        if (active() == name and lact.returncode == 0
+                and lact.stdout.strip() == name
+                and all(p.read_text().strip() == level for p, level in gpu_levels)):
+            notify(label)
+            print(name)
+            return
+        time.sleep(0.25)
+    raise RuntimeError('Could not confirm the CPU and GPU profile. Check TuneD and LACT.')
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--set', choices=[p[0] for p in PROFILES])
+    parser.add_argument('--status', action='store_true')
+    args = parser.parse_args()
+    if args.status:
+        print(active())
+        return
+    lock = open(Path(os.environ['XDG_RUNTIME_DIR']) / 'desktop-power-menu.lock', 'w')
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return
+    if args.set:
+        profile = next(p for p in PROFILES if p[0] == args.set)
+    else:
+        current = active()
+        selected = next((i for i, p in enumerate(PROFILES) if p[1] == current), 1)
+        rows = ['● ' + p[2] if p[1] == current else '  ' + p[2] for p in PROFILES]
+        menu = subprocess.run(['fuzzel', '--dmenu', '--index', '--lines=3',
+                               '--prompt=Power mode > ', '--select-index=' + str(selected)],
+                              input='\n'.join(rows) + '\n', capture_output=True, text=True)
+        if menu.returncode:
+            if menu.returncode != 2:  # Escape / ordinary cancellation.
+                if menu.stderr.strip():
+                    print(menu.stderr.strip(), file=sys.stderr)
+            return
+        choice = menu.stdout.strip()
+        if choice not in ('0', '1', '2'):
+            return
+        profile = PROFILES[int(choice)]
+    switch(profile)
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, RuntimeError, subprocess.TimeoutExpired, yaml.YAMLError) as exc:
+        print(str(exc), file=sys.stderr)
+        notify(str(exc), error=True)
+        sys.exit(1)

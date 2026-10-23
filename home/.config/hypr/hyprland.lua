@@ -1,7 +1,7 @@
 dofile(os.getenv("HOME") .. "/.config/hypr/security.lua")
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
 
--- Graphite Rhythm: zero exterior space/radius; 2px gold focus contour.
+-- Arthur: zero gaps/radii; 2px gray-beige to cream focus gradient.
 -- Shared geometry: ~/.config/desktop-design/DESIGN.md
 hl.config({
 	general = {
@@ -11,11 +11,11 @@ hl.config({
 		border_size = 2,
 		col = {
 			active_border = {
-				colors = { "rgb(c1a16b)" },
+				colors = { "rgb(bbaa99)", "rgb(ddccbb)" },
 				angle = 45,
 			},
 			inactive_border = {
-				colors = { "rgb(504945)" },
+				colors = { "rgb(4d4d4d)" },
 				angle = 45,
 			},
 		},
@@ -52,6 +52,8 @@ hl.config({
 	},
 	binds = { workspace_back_and_forth = false },
 	misc = {
+		-- Permit the supervised locker to recover after a crash.
+		allow_session_lock_restore = true,
 		disable_hyprland_logo = true,
 		disable_splash_rendering = true,
 		vrr = 2,
@@ -161,6 +163,16 @@ for key, action in pairs({
 }) do
 	hl.bind(key, hl.dsp.exec_cmd("playerctl " .. action), { locked = true })
 end
+
+-- Keep Telegram's media viewer out of the tiling layout.
+hl.window_rule({
+	name = "telegram-media-viewer",
+	match = {
+		class = "^org\\.telegram\\.desktop$",
+		initial_title = "^(Media viewer|Просмотр медиа|Просмотр мультимедиа)$",
+	},
+	float = true,
+})
 
 hl.window_rule({
 	name = "picture-in-picture",

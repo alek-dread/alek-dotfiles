@@ -13,8 +13,13 @@ def output(*args):
 def main():
     if sys.argv[1:] not in (['locked'], ['unlocked']):
         raise RuntimeError('Usage: desktop-lock-state locked|unlocked')
-    subprocess.run(['makoctl', 'mode', '-a' if sys.argv[1] == 'locked' else '-r',
-                    'locked'], check=True, timeout=5)
+    # Notification failures must not prevent logind state synchronization.
+    notification_error = None
+    try:
+        subprocess.run(['makoctl', 'mode', '-a' if sys.argv[1] == 'locked' else '-r',
+                        'locked'], check=True, timeout=5)
+    except (OSError, subprocess.SubprocessError) as error:
+        notification_error = error
     candidates = []
     for session in json.loads(output('loginctl', 'list-sessions', '--json=short')):
         if session.get('uid') != os.getuid() or not session.get('seat'):
@@ -31,6 +36,8 @@ def main():
     path = json.loads(reply.split(' ', 1)[1])
     output(*manager, path, 'org.freedesktop.login1.Session', 'SetLockedHint',
            'b', 'true' if sys.argv[1] == 'locked' else 'false')
+    if notification_error is not None:
+        raise RuntimeError(f'LockedHint synchronized, but notification mode failed: {notification_error}')
 
 
 if __name__ == '__main__':

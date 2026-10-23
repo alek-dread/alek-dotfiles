@@ -146,6 +146,22 @@ class LockState(unittest.TestCase):
         self.assertIn('SetLockedHint',output.call_args.args)
         self.assertEqual(output.call_args.args[-2:],('b','true'))
 
+    def test_notification_failure_still_synchronizes_login_hint(self):
+        sessions = [{'session': '2', 'uid': os.getuid(), 'seat': 'seat0'}]
+        replies = [json.dumps(sessions), 'Type=wayland\nRemote=no',
+                   'o "/org/freedesktop/login1/session/_32"', '']
+        for error in (FileNotFoundError('makoctl'),
+                      subprocess.CalledProcessError(1, 'makoctl'),
+                      subprocess.TimeoutExpired('makoctl', 5)):
+            with self.subTest(error=type(error).__name__), \
+                    patch.object(lock.subprocess, 'run', side_effect=error), \
+                    patch.object(lock, 'output', side_effect=replies) as output, \
+                    patch('sys.argv', ['desktop-lock-state', 'unlocked']):
+                with self.assertRaisesRegex(RuntimeError, 'LockedHint synchronized'):
+                    lock.main()
+                self.assertIn('SetLockedHint', output.call_args.args)
+                self.assertEqual(output.call_args.args[-2:], ('b', 'false'))
+
     def test_ambiguous_login_never_changes_hint(self):
         sessions=[{'session':'2','uid':os.getuid(),'seat':'seat0'},{'session':'4','uid':os.getuid(),'seat':'seat1'}]
         with patch.object(lock.subprocess, 'run'), patch.object(lock,'output',side_effect=[json.dumps(sessions),'Type=wayland\nRemote=no','Type=wayland\nRemote=no']) as output, \
