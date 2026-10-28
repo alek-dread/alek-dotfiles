@@ -45,12 +45,21 @@ with open(os.environ['TEST_CALLS'], 'a') as f:
     f.write(json.dumps([name, *args]) + '\\n')
 if name == 'id': print('1000')
 if name == 'rpm': sys.exit(1)
+repositories = json.loads(os.environ.get('TEST_TERRA_REPOSITORIES', '[{"id":"terra"},{"id":"terra-source"}]'))
+if name == 'dnf':
+    if args == ['repo', 'list', '--all', '--json']:
+        print(json.dumps(repositories))
+        sys.exit(0)
+    sys.exit(99)
 if name == 'sudo':
+    if args[0] == 'dnf' and '--disable-repo=terra*' in args and not repositories:
+        print('No matching repositories for terra*', file=sys.stderr)
+        sys.exit(2)
     if os.environ.get('FAIL_PACKAGES'): sys.exit(1)
     if args[0] == 'python3': sys.exit(subprocess.run(args).returncode)
 if name in ('gsettings', 'dconf', 'systemctl', 'xdg-mime'): sys.exit(99)
 '''
-        for name in ('sudo', 'rpm', 'id', 'gsettings', 'dconf', 'systemctl', 'xdg-mime'):
+        for name in ('sudo', 'dnf', 'rpm', 'id', 'gsettings', 'dconf', 'systemctl', 'xdg-mime'):
             p = self.bin / name
             p.write_text(mock)
             p.chmod(0o755)
@@ -132,6 +141,17 @@ if name in ('gsettings', 'dconf', 'systemctl', 'xdg-mime'): sys.exit(99)
         repeated = self.run_install(['--terra', 'no', '--greeter', 'no', '--font', 'jetbrains-mono'])
         self.assertEqual(repeated.returncode, 0, repeated.stderr)
         self.assertIn('Added 0 files', repeated.stdout)
+
+    def test_no_terra_on_fresh_fedora_never_passes_an_unmatched_repository_glob(self):
+        result = self.run_install(['--terra', 'no', '--greeter', 'no', '--font', 'jetbrains-mono'],
+                                  TEST_TERRA_REPOSITORIES='[]')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.logged()
+        self.assertIn(['dnf', 'repo', 'list', '--all', '--json'], calls)
+        dnf_calls = [c for c in calls if c[:2] == ['sudo', 'dnf']]
+        self.assertTrue(dnf_calls)
+        self.assertTrue(all('--disable-repo=terra*' not in c for c in dnf_calls))
+        self.assertFalse(any('terra-release' in c for c in calls))
 
     def test_missing_answers_never_silently_enable_repositories_or_greeter(self):
         result = self.run_install([])

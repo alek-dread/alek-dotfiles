@@ -84,11 +84,25 @@ if [ "$greeter" = yes ]; then
     python3 docs/install-greeter.py check --font "$font"
 fi
 # All DNF operations honor the Terra choice, including existing installations.
+# DNF5 rejects an unmatched --disable-repo glob, even on a fresh Fedora install.
+disable_terra=no
+if [ "$terra" = no ]; then
+    disable_terra=$(python3 - <<'PY'
+import json
+import subprocess
+
+result = subprocess.run(['dnf', 'repo', 'list', '--all', '--json'],
+                        capture_output=True, text=True, check=True)
+repositories = json.loads(result.stdout)
+print('yes' if any(repo['id'].startswith('terra') for repo in repositories) else 'no')
+PY
+    )
+fi
 dnf_run() {
-    if [ "$terra" = yes ]; then
-        sudo dnf "$@"
-    else
+    if [ "$disable_terra" = yes ]; then
         sudo dnf '--disable-repo=terra*' "$@"
+    else
+        sudo dnf "$@"
     fi
 }
 dnf_run install -y dnf5-plugins

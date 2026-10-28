@@ -19,8 +19,10 @@ Run as your regular user on Fedora 44 with DNF5 and sudo:
 Before making changes, the installer asks:
 
 1. Use Terra? Default: yes. A no answer skips its installation, key import and
-   configuration; `terra*` is disabled only for this installer's DNF commands,
-   including when Terra was already configured. Other applications keep their
+   configuration. The installer checks configured repository IDs first and adds
+   `--disable-repo=terra*` only when a matching repository exists, avoiding DNF5's
+   unmatched-repository error on a fresh install. This disables Terra only for
+   this installer's DNF commands. Other applications keep their
    repository settings.
 2. Install the Arthur login screen from this workstation? Default: no. A yes
    answer builds the bundled gtkgreet-controls RPM, installs greetd/Cage and
