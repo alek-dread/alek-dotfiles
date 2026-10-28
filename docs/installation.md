@@ -2,7 +2,7 @@
 
 A configured Hyprland session for **Fedora Workstation 44**, installed alongside
 GNOME. Includes Waybar, Fuzzel, Mako, Alacritty, Hypridle, Hyprlock, screenshots,
-screen recording, wallpaper and power menus, and desktop application helpers.
+screen recording, wallpaper and power menus, clipboard history, and desktop application helpers.
 The Arthur appearance follows the current desktop: dark gray surfaces, pale text,
 a gray-beige accent and a cream focus gradient, with no gaps, rounding, animations,
 shadows or blur. Optional GTK, Firefox, Neovim and greeter files are described in
@@ -84,6 +84,11 @@ Codec support depends on your GPU and installed drivers. The installer does not
 configure RPM Fusion or replace Mesa packages. Remove the setting to use software
 recording; `DESKTOP_RECORD_DISABLE_VAAPI=1` forces software recording if needed.
 Failure logs are under `~/.local/state/desktop-record/`.
+
+## Clipboard history
+
+See [clipboard.md](clipboard.md) for shortcuts, storage limits and activation.
+The installer adds the files without enabling history recording automatically.
 
 ## Machine preferences
 

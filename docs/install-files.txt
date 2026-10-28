@@ -5,6 +5,8 @@
 .config/autostart/hyprland-mako.desktop
 .config/autostart/hyprland-polkit-agent.desktop
 .config/autostart/hyprland-waybar.desktop
+.config/cliphist/config
+.config/desktop-clipboard/fuzzel.ini
 .config/desktop-design/DESIGN.md
 .config/desktop-record/settings.json
 .config/fuzzel/fuzzel.ini
@@ -21,6 +23,7 @@
 .config/systemd/user/app-hyprland\x2dmako@autostart.service.d/10-recovery.conf
 .config/systemd/user/app-hyprland\x2dpolkit\x2dagent@autostart.service.d/10-recovery.conf
 .config/systemd/user/app-hyprland\x2dwaybar@autostart.service.d/10-recovery.conf
+.config/systemd/user/desktop-clipboard@.service
 .config/systemd/user/desktop-lock.service
 .config/systemd/user/desktop-record.service
 .config/uwsm/env-hyprland
@@ -32,6 +35,7 @@
 .local/bin/desktop-background
 .local/bin/desktop-bar
 .local/bin/desktop-calculator
+.local/bin/desktop-clipboard
 .local/bin/desktop-disk-usage
 .local/bin/desktop-document-viewer
 .local/bin/desktop-file-manager
@@ -46,7 +50,9 @@
 .local/bin/desktop-terminal
 .local/bin/desktop-text-editor
 .local/bin/desktop-wallpaper
+.local/libexec/desktop-clipboard-store
 .local/libexec/waybar-workspace
+.local/share/applications/alek-hyprland-desktop-clipboard.desktop
 .local/share/applications/alek-hyprland-desktop-power-menu.desktop
 .local/share/applications/alek-hyprland-desktop-record-settings.desktop
 .local/share/applications/alek-hyprland-desktop-wallpaper.desktop

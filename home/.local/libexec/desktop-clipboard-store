@@ -1,0 +1,39 @@
+#!/usr/bin/python3 -I
+"""Bound clipboard input before passing it to ClipHist."""
+import os
+import signal
+import subprocess
+import sys
+
+MAX_ENTRY = 5_000_000  # Match ClipHist's own limit, before allocating unbounded input.
+TIFF = (b'II*\0', b'MM\0*', b'II+\0', b'MM\0+')
+
+
+def read_timeout(*_):
+    raise TimeoutError('Clipboard source did not finish its transfer')
+
+
+def main():
+    os.umask(0o077)
+    if os.environ.get('CLIPBOARD_STATE') != 'data':
+        return 0
+    signal.signal(signal.SIGALRM, read_timeout)
+    signal.alarm(5)
+    try:
+        data = sys.stdin.buffer.read(MAX_ENTRY + 1)
+    finally:
+        signal.alarm(0)
+    # This Fedora build contains x/image v0.21.0. Do not send TIFF to the
+    # vulnerable DecodeConfig preview path (GO-2026-4815).
+    if not data or len(data) > MAX_ENTRY or data.startswith(TIFF):
+        return 0
+    return subprocess.run(['/usr/bin/cliphist', 'store'], input=data,
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                          timeout=8).returncode
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, TimeoutError, subprocess.TimeoutExpired):
+        raise SystemExit(1)

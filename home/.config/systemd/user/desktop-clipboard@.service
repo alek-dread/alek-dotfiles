@@ -1,0 +1,22 @@
+[Unit]
+Description=Clipboard history (%i)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/wl-paste --type %i --watch %h/.local/libexec/desktop-clipboard-store
+Restart=on-failure
+RestartSec=2
+UMask=0077
+Slice=app.slice
+NoNewPrivileges=yes
+MemoryMax=192M
+TasksMax=32
+CPUQuota=50%
+LimitCORE=0
+TimeoutStopSec=5
+TimeoutStopFailureMode=terminate
+
+[Install]
+WantedBy=graphical-session.target

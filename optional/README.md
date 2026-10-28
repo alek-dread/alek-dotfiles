@@ -1,6 +1,6 @@
 # Дополнительные настройки
 
-Снимок оформления исходной системы на 23 октября 2026. `install.sh`
+Снимок оформления исходной системы на 28 октября 2026. `install.sh`
 не устанавливает эти файлы. Выбирай и переноси нужное вручную.
 
 - `home/`: настройки GTK 2/3/4 (Adwaita dark, Paper, Iosevka, без эффектов),
@@ -10,11 +10,11 @@
   Помести в `chrome/` нужного профиля, включи
   `toolkit.legacyUserProfileCustomizations.stylesheets` в `about:config`
   и перезапусти Firefox.
-- `workstation/local.lua`: монитор DP-1 1920×1080@144 и программный курсор RX 470;
+- `workstation/local.lua`: монитор DP-1 1920×1080@144, программный курсор RX 470, отключённый VRR;
   при необходимости перенеси в `~/.config/hypr/local.lua`.
 - `workstation/env-hyprland.local`: программное кодирование и запрет VA-API
   после сбоя VCE на RX 470; путь назначения — `~/.config/uwsm/env-hyprland.local`.
-- `workstation/record-settings.json`: личный выбор записи звука (микрофон + система).
+- `workstation/record-settings.json`: личный выбор записи звука (система).
   Общая установка сохраняет исходное значение «без звука».
 - `workstation/desktop-power-menu`: вариант меню для уже настроенных профилей
   `xeon-eco`, `xeon-balanced`, `xeon-performance` в TuneD/LACT, требует PyYAML.
@@ -42,3 +42,12 @@ rpmbuild -ba optional/greeter/source/gtkgreet-controls.spec \
 
 Это материалы для ручной настройки greetd. Установщик репозитория использует
 существующий экран входа и добавляет отдельную сессию **Hyprland (Alek)**.
+
+## Новые снимки и исходники
+
+- `workstation/hyprland.lua`: полный снимок конфигурации исходного ПК;
+  содержит его монитор, настройки GPU и прямой запуск системных приложений.
+  Для переносимой установки используй общий конфиг и `local.lua`.
+- `workstation/desktop-check`: помощник диагностики исходного ПК, включая
+  greetd, LACT и системные библиотеки. Не запускается установщиком.
+- [`rust/`](rust/README.md): исходники нативных помощников Waybar и буфера обмена.

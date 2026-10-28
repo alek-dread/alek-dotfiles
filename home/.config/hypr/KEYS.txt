@@ -25,6 +25,9 @@ Super+left / right drag  Move / resize window
 Super+middle click       Toggle floating for the focused window
 
 Additional desktop bindings
+Super+V                  Clipboard history: search, Enter copies, Esc cancels
+                         Shift+Delete removes selected entry; Ctrl+V pastes in app
+Super+Shift+V            Clipboard settings: pause/resume recording, clear history
 Super+E                  Files (Nemo)
 Super+Shift+P            Power modes
 Super+Alt+L              Lock session

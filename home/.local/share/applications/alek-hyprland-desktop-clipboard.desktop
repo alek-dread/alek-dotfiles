@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=Clipboard History
+Name[ru]=История буфера обмена
+Comment=Search copied text and images
+Comment[ru]=Поиск скопированного текста и изображений
+Exec=/home/alek/.local/bin/desktop-clipboard
+Icon=edit-paste
+Terminal=false
+OnlyShowIn=Hyprland;
+Categories=Utility;
+Keywords=clipboard;history;copy;paste;буфер;история;
+Actions=Settings;
+
+[Desktop Action Settings]
+Name=Clipboard settings
+Name[ru]=Настройки буфера обмена
+Exec=/home/alek/.local/bin/desktop-clipboard menu

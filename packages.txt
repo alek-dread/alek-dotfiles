@@ -67,3 +67,4 @@ gvfs
 gvfs-mtp
 gvfs-smb
 gvfs-archive
+cliphist

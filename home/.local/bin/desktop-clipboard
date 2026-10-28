@@ -1,0 +1,210 @@
+#!/usr/bin/python3 -I
+"""ClipHist picker and recording controls for Fuzzel."""
+import argparse
+import contextlib
+import fcntl
+import os
+from pathlib import Path
+import stat
+import subprocess
+import sys
+import unicodedata
+
+HOME = Path.home()
+CONFIG = HOME / '.config/desktop-clipboard/fuzzel.ini'
+UNITS = ['desktop-clipboard@text.service', 'desktop-clipboard@image.service']
+BINARIES = {name: '/usr/bin/' + name for name in
+            ('cliphist', 'wl-copy', 'systemctl', 'fuzzel', 'notify-send')}
+
+
+class MissingEntry(RuntimeError):
+    pass
+
+
+def run(*args, data=None):
+    copying = args[0] == 'wl-copy'
+    result = subprocess.run([BINARIES[args[0]], *args[1:]], input=data,
+                            stdout=subprocess.DEVNULL if copying else subprocess.PIPE,
+                            stderr=subprocess.DEVNULL if copying else subprocess.PIPE,
+                            timeout=15)
+    if result.returncode:
+        error = (result.stderr or b'').decode(errors='replace').strip()
+        if args[:2] == ('cliphist', 'decode') and error.startswith('id ') and error.endswith(' not found'):
+            raise MissingEntry('The selected entry has changed')
+        if args[:2] == ('cliphist', 'list') and 'please store something first' in error:
+            return b''
+        raise RuntimeError(error or f'{args[0]} failed')
+    return result.stdout or b''
+
+
+def notify(message):
+    try:
+        subprocess.run([BINARIES['notify-send'], '-a', 'Clipboard', 'Clipboard', message],
+                       check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+@contextlib.contextmanager
+def lock(name, blocking=True):
+    directory = Path(os.environ['XDG_RUNTIME_DIR'])
+    fd = os.open(directory / ('desktop-clipboard-' + name + '.lock'),
+                 os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or st.st_nlink != 1:
+            raise RuntimeError('Invalid clipboard lock file')
+        fcntl.flock(fd, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
+        yield
+    finally:
+        os.close(fd)
+
+
+def unit_states():
+    text = run('systemctl', '--user', 'show', '--property=Id', '--property=ActiveState',
+               '--property=UnitFileState', *UNITS).decode()
+    states = {}
+    for block in text.strip().split('\n\n'):
+        properties = dict(line.split('=', 1) for line in block.splitlines() if '=' in line)
+        if properties.get('Id') in UNITS:
+            states[properties['Id']] = properties
+    if len(states) != len(UNITS):
+        raise RuntimeError('Clipboard recording services are unavailable')
+    return states
+
+
+def recording_state():
+    states = list(unit_states().values())
+    if all(s['ActiveState'] == 'active' and s['UnitFileState'] == 'enabled' for s in states):
+        return 'recording'
+    if all(s['ActiveState'] == 'inactive' and s['UnitFileState'] == 'disabled' for s in states):
+        return 'paused'
+    return 'degraded'
+
+
+def choose(rows, prompt, hint='', history=False):
+    if not rows:
+        return None, False
+    result = subprocess.run([BINARIES['fuzzel'], '--config=' + str(CONFIG),
+                            '--dmenu', '--index', '--only-match',
+                            '--namespace=desktop-clipboard', '--no-sort', '--counter',
+                            '--width=64', '--lines=' + str(min(len(rows), 10)),
+                            '--prompt=' + prompt, '--placeholder=' + hint],
+                            input=('\n'.join(rows) + '\n').encode(), capture_output=True)
+    if result.returncode not in ((0, 10) if history else (0,)):
+        if result.returncode == 1 and result.stderr.strip():
+            raise RuntimeError('Could not open the clipboard menu')
+        return None, False
+    try:
+        index = int(result.stdout.strip())
+    except ValueError:
+        return None, False
+    return (index if 0 <= index < len(rows) else None), result.returncode == 10
+
+
+def entries():
+    # Only LF is the record delimiter. Unicode line separators can occur in text.
+    result = []
+    for line in run('cliphist', 'list').split(b'\n'):
+        entry_id, delimiter, preview = line.partition(b'\t')
+        if delimiter and entry_id.isdigit():
+            result.append((entry_id.decode('ascii'), preview.decode(errors='replace')))
+    return result
+
+
+def display_text(text):
+    # Prevent control bytes/NUL metadata and invisible bidi formatting in the menu.
+    return ''.join(f'\\u{ord(c):04x}' if unicodedata.category(c).startswith('C')
+                   or c in '\u2028\u2029' else c for c in text)
+
+
+def history():
+    while True:
+        items = entries()
+        state = recording_state()
+        if not items:
+            notify('History is empty. Copy some text or an image first.' if state == 'recording'
+                   else 'History is empty. Open clipboard settings to resume recording.')
+            return
+        title = {'recording': 'Clipboard > ', 'paused': 'Clipboard (paused) > ',
+                 'degraded': 'Clipboard (recording needs attention) > '}[state]
+        index, delete = choose([display_text(item[1]) for item in items], title,
+                               'Search · Enter: copy · Shift+Delete: remove', True)
+        if index is None:
+            return
+        item = items[index][0].encode('ascii')
+        if delete:
+            run('cliphist', 'delete', data=item)
+            continue
+        try:
+            data = run('cliphist', 'decode', data=item)
+        except MissingEntry:
+            notify('History changed while the menu was open. Select the entry again.')
+            continue
+        run('wl-copy', data=data)
+        return
+
+
+def recording(on):
+    with lock('control'):
+        run('systemctl', '--user', 'enable' if on else 'disable', '--now', *UNITS)
+        expected = 'recording' if on else 'paused'
+        if recording_state() != expected:
+            raise RuntimeError('Could not change recording state; open clipboard settings to retry')
+    notify('History recording resumed.' if on else 'History recording paused, including after login.')
+
+
+def clear():
+    index, _ = choose(['Cancel', 'Clear all history and current clipboard'], 'Clear clipboard > ')
+    if index != 1:
+        return
+    with lock('control'):
+        active = [unit for unit, state in unit_states().items() if state['ActiveState'] == 'active']
+        try:
+            run('systemctl', '--user', 'stop', *UNITS)
+            run('wl-copy', '--clear')
+            run('cliphist', 'wipe')
+        finally:
+            if active:
+                run('systemctl', '--user', 'start', *active)
+    notify('History and clipboard cleared.')
+
+
+def menu():
+    on = recording_state() == 'recording'
+    index, _ = choose(['Open history', 'Pause recording' if on else 'Resume / repair recording',
+                       'Clear history and clipboard', 'Close'], 'Clipboard settings > ')
+    if index == 0:
+        history()
+    elif index == 1:
+        recording(not on)
+    elif index == 2:
+        clear()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', nargs='?', default='history',
+                        choices=['history', 'menu', 'pause', 'resume', 'clear', 'status'])
+    action = parser.parse_args().action
+    if action == 'status':
+        print(recording_state())
+    elif action in ('pause', 'resume'):
+        # Controls must work even while a picker holds the independent menu lock.
+        recording(action == 'resume')
+    else:
+        try:
+            with lock('menu', blocking=False):
+                {'history': history, 'menu': menu, 'clear': clear}[action]()
+        except BlockingIOError:
+            return
+
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        main()
+    except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as error:
+        print('Clipboard: ' + str(error), file=sys.stderr)
+        notify('Clipboard operation failed. See the command output for details.')
+        raise SystemExit(1)

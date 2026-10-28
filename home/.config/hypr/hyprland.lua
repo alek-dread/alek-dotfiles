@@ -118,6 +118,8 @@ for i = 1, 9 do
 end
 
 -- Additional desktop functions, without aliases for upstream dwm bindings.
+hl.bind("SUPER + V", hl.dsp.exec_cmd("desktop-clipboard"))
+hl.bind("SUPER + SHIFT + V", hl.dsp.exec_cmd("desktop-clipboard menu"))
 hl.bind("SUPER + E", hl.dsp.exec_cmd("uwsm app -- desktop-file-manager"))
 hl.bind("SUPER + SHIFT + P", hl.dsp.exec_cmd("desktop-power-menu"))
 hl.bind("SUPER + SHIFT + J", hl.dsp.layout("swapnext"))

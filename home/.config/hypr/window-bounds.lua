@@ -16,7 +16,7 @@ function M.fit(window)
     local size = window.size
     local w, h = math.min(size.x, right - left), math.min(size.y, bottom - top)
     if w <= 0 or h <= 0 then return end
-    if size.x <= w and size.y <= h then return end
+    -- A correctly sized window may still extend beyond the usable area.
     if size.x > w or size.y > h then
         hl.dispatch(hl.dsp.window.resize({ window = window, x = w, y = h }))
         size = window.size

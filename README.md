@@ -18,6 +18,7 @@ Mako, Alacritty, блокировка экрана, скриншоты и зап
 | --- | --- |
 | Super+Shift+Enter | Терминал |
 | Super+P / Super+E | Приложения / файлы |
+| Super+V / Super+Shift+V | История буфера / её настройки |
 | Super+1…9 | Рабочие столы |
 | Super+Alt+L | Блокировка |
 | Print / Ctrl+Print | Скриншот области / экранов |
@@ -29,5 +30,8 @@ Mako, Alacritty, блокировка экрана, скриншоты и зап
 [Подробности установки](docs/installation.md) ·
 [Оформление](home/.config/desktop-design/DESIGN.md) ·
 [Greeter, GTK, Firefox и настройки моего ПК](optional/README.md)
+
+[История буфера обмена](docs/clipboard.md) ·
+[Исходники Rust-помощников](optional/rust/README.md)
 
 Проверка: `python3 -m unittest discover -s tests -v`.

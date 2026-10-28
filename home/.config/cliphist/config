@@ -1,0 +1,4 @@
+# Keep a small, deduplicated history of text and images.
+max-items 200
+max-dedupe-search 200
+preview-width 180

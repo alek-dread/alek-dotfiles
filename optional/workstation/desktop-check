@@ -1,0 +1,209 @@
+#!/usr/bin/python3
+"""Read-only checks for this workstation's graphical session."""
+import argparse
+import configparser
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import textwrap
+from datetime import datetime, timezone
+
+
+def command(*args, timeout=10):
+    result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    if result.returncode:
+        raise RuntimeError((result.stderr or result.stdout).strip() or 'Command failed: ' + args[0])
+    return result.stdout.strip()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--json', action='store_true', help='Print machine-readable results')
+    parser.add_argument('--full', action='store_true', help='Also verify RPM files and accelerated rendering')
+    parser.add_argument('--output', type=Path, help='Save results as JSON')
+    args = parser.parse_args()
+    results = []
+
+    def check(name, function):
+        try:
+            detail = function()
+            results.append(dict(check=name, status='pass', detail=detail or 'OK'))
+        except (OSError, ValueError, KeyError, IndexError, RuntimeError, subprocess.SubprocessError) as error:
+            results.append(dict(check=name, status='fail', detail=str(error)))
+
+    def configuration():
+        error = command('hyprctl', 'configerrors')
+        if error:
+            raise RuntimeError(error)
+
+    check('Hyprland configuration', configuration)
+
+    def lock_recovery():
+        if 'bool: true' not in command('hyprctl', 'getoption', 'misc.allow_session_lock_restore'):
+            raise RuntimeError('Compositor refuses locker recovery after a crash')
+        if command('systemctl', '--user', 'show', 'desktop-lock.service', '-p', 'Restart', '--value') != 'on-failure':
+            raise RuntimeError('Locker is not supervised for crash recovery')
+        return 'Compositor permits recovery; systemd restarts the locker on failure'
+
+    check('Lock recovery', lock_recovery)
+
+    def gtk_settings(version):
+        # Separate processes: GTK 3 and GTK 4 cannot coexist in one Python process.
+        probe = textwrap.dedent("""\
+            import gi, json, sys
+            gi.require_version('Gtk', sys.argv[1])
+            from gi.repository import Gtk, Gdk
+            settings = Gtk.Settings.get_default()
+            keys = ('gtk-theme-name', 'gtk-application-prefer-dark-theme', 'gtk-font-name',
+                    'gtk-icon-theme-name', 'gtk-cursor-theme-name', 'gtk-cursor-theme-size',
+                    'gtk-enable-animations', 'gtk-cursor-blink')
+            print(json.dumps(dict(values={key: settings.get_property(key) for key in keys},
+                                  display=type(Gdk.Display.get_default()).__name__)))
+        """)
+        actual = json.loads(command(sys.executable, '-c', probe, version))
+        expected = {'gtk-theme-name': 'Adwaita', 'gtk-application-prefer-dark-theme': True,
+                    'gtk-font-name': 'Iosevka Aile 11', 'gtk-icon-theme-name': 'Paper',
+                    'gtk-cursor-theme-name': 'Adwaita', 'gtk-cursor-theme-size': 24,
+                    'gtk-enable-animations': False, 'gtk-cursor-blink': False}
+        if actual['values'] != expected or 'Wayland' not in actual['display']:
+            raise RuntimeError('Unexpected effective GTK settings: ' + json.dumps(actual))
+        return 'Wayland; Adwaita dark; Paper; Iosevka Aile 11; Adwaita cursor 24'
+
+    for version in ('3.0', '4.0'):
+        check('GTK ' + version + ' effective settings', lambda version=version: gtk_settings(version))
+
+    def adwaita_settings():
+        probe = textwrap.dedent("""\
+            import gi, json
+            gi.require_version('Adw', '1')
+            from gi.repository import Adw
+            Adw.init()
+            manager = Adw.StyleManager.get_default()
+            print(json.dumps(dict(dark=manager.get_dark(),
+                                  supported=manager.get_system_supports_color_schemes())))
+        """)
+        actual = json.loads(command(sys.executable, '-c', probe))
+        if not actual['dark'] or not actual['supported']:
+            raise RuntimeError('libadwaita did not select system dark appearance: ' + json.dumps(actual))
+        return 'System color scheme supported; dark appearance selected'
+
+    check('libadwaita effective appearance', adwaita_settings)
+
+    def portal_appearance():
+        value = command('busctl', '--user', 'call', 'org.freedesktop.portal.Desktop',
+                        '/org/freedesktop/portal/desktop', 'org.freedesktop.portal.Settings',
+                        'Read', 'ss', 'org.freedesktop.appearance', 'color-scheme')
+        if value != 'v v u 1':
+            raise RuntimeError('Portal does not report prefer-dark: ' + value)
+        return 'Settings portal reports prefer-dark'
+
+    check('Portal appearance', portal_appearance)
+
+    for unit in ('graphical-session.target', 'pipewire.service', 'pipewire-pulse.service',
+                 'wireplumber.service', 'xdg-desktop-portal.service',
+                 'xdg-desktop-portal-gtk.service', 'xdg-desktop-portal-hyprland.service',
+                 *[r'app-hyprland\x2d' + name.replace('-', r'\x2d') + '@autostart.service'
+                   for name in ('background', 'hypridle', 'mako', 'polkit-agent', 'waybar')]):
+        check(unit, lambda unit=unit: command('systemctl', '--user', 'is-active', unit))
+
+    def failures():
+        failed = command('systemctl', '--user', '--failed', '--no-legend')
+        if failed:
+            raise RuntimeError(failed)
+
+    check('Failed user units', failures)
+
+    def workspace_cache():
+        workspaces = json.loads(command('hyprctl', '-j', 'workspaces'))
+        active = json.loads(command('hyprctl', '-j', 'activeworkspace'))['id']
+        bar_pids = command('pgrep', '-x', 'waybar').splitlines()
+        if len(bar_pids) != 1:
+            raise RuntimeError('Expected exactly one Waybar process')
+        env = dict(line.split('=', 1) for line in Path('/proc', bar_pids[0], 'environ').read_text().split('\0') if '=' in line)
+        directory = Path(env['WAYBAR_WORKSPACE_DIR'])
+        for number in range(1, 10):
+            actual = json.loads((directory / f'{number}.json').read_text())
+            occupied = any(w['id'] == number and w['windows'] > 0 for w in workspaces)
+            expected_classes = {'workspace', 'occupied' if occupied else 'empty'}
+            if active == number:
+                expected_classes.add('active')
+            # Urgency is maintained from events, rather than inferred by this snapshot.
+            if actual['text'] != str(number) or set(actual['class']) - {'urgent'} != expected_classes:
+                raise RuntimeError(f'Workspace {number} cache does not match compositor state')
+        return 'All nine workspaces match Hyprland'
+
+    check('Workspace integration', workspace_cache)
+
+    def library_versions():
+        import rpm
+        for name, minimum in {'libX11': '1.8.14', 'libXi': '1.8.4', 'libXpm': '3.5.20',
+                              'libXrender': '0.9.13', 'libXtst': '1.2.6'}.items():
+            for line in command('rpm', '-q', '--qf', '%{VERSION} %{ARCH}\n', name).splitlines():
+                version, arch = line.split()
+                if rpm.labelCompare(('0', version, '0'), ('0', minimum, '0')) < 0:
+                    raise RuntimeError(f'{name}.{arch} {version} is older than {minimum}')
+        return 'Fixed X.Org releases installed for every installed architecture'
+
+    check('X.Org security baseline', library_versions)
+    check('Packaged greeter', lambda: command('rpm', '-qf', '/usr/bin/gtkgreet-controls'))
+
+    def gpu_configuration():
+        import yaml
+        config = yaml.safe_load(Path('/etc/lact/config.yaml').read_text())
+        groups = [config.get('gpus', {}), *[profile.get('gpus', {}) for profile in config.get('profiles', {}).values()]]
+        if any(gpu.get('gpu_vf_curve') or gpu.get('mem_vf_curve') for group in groups for gpu in group.values()):
+            raise RuntimeError('A LACT profile contains custom clock/voltage points')
+        return command('lact', 'cli', 'profile', 'get') + '; no custom voltage curves'
+
+    check('GPU voltage policy', gpu_configuration)
+
+    def audio_default():
+        sources = json.loads(command('pactl', '-f', 'json', 'list', 'sources'))
+        defaults = configparser.ConfigParser(interpolation=None)
+        defaults.read(Path.home() / '.local/state/wireplumber/default-nodes')
+        configured = defaults.get('default-nodes', 'default.configured.audio.source', fallback='')
+        if configured and configured not in {source['name'] for source in sources}:
+            raise RuntimeError('Configured microphone is unavailable: ' + configured)
+        return 'Configured microphone is available or automatic selection is enabled'
+
+    check('Audio source selection', audio_default)
+    permission = command('hyprctl', 'getoption', 'ecosystem.enforce_permissions')
+    results.append(dict(check='Capture permissions', status='pass' if 'bool: true' in permission else 'warning',
+                        detail='Enabled' if 'bool: true' in permission else 'Sign in again to activate the configured permission rules'))
+
+    if args.full:
+        def rendering():
+            output = command('glxinfo', '-B')
+            if 'Accelerated: yes' not in output:
+                raise RuntimeError('Hardware accelerated rendering was not confirmed')
+            return 'Hardware acceleration confirmed'
+
+        check('OpenGL rendering', rendering)
+        check('Critical RPM files', lambda: command('rpm', '-V', 'hyprland', 'hyprlock', 'hypridle',
+              'uwsm', 'waybar', 'gtkgreet-controls', 'libX11', 'libXi', 'libXpm', 'libXrender', 'libXtst'))
+
+    report = dict(time=datetime.now(timezone.utc).isoformat(), checks=results,
+                  passed=sum(r['status'] == 'pass' for r in results),
+                  warnings=sum(r['status'] == 'warning' for r in results),
+                  failed=sum(r['status'] == 'fail' for r in results))
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        fd, filename = tempfile.mkstemp(dir=args.output.parent, prefix='.desktop-check-')
+        with os.fdopen(fd, 'w') as file:
+            json.dump(report, file, indent=2)
+            file.write('\n')
+        os.replace(filename, args.output)
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        for result in results:
+            print(f"{result['status'].upper()}: {result['check']}: {result['detail']}")
+        print(f"{report['passed']} passed, {report['warnings']} warnings, {report['failed']} failed")
+    return 1 if report['failed'] else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

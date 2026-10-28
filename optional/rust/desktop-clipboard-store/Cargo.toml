@@ -1,0 +1,16 @@
+[package]
+name = "desktop-clipboard-store"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Bounded, deadline-aware wl-paste to ClipHist bridge for Linux"
+publish = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[dependencies]
