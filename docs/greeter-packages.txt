@@ -1,0 +1,10 @@
+greetd
+cage
+dbus-daemon
+rpm-build
+gcc
+meson
+ninja-build
+gtk3-devel
+json-c-devel
+policycoreutils

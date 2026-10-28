@@ -59,8 +59,11 @@ if name in ('gsettings', 'dconf', 'systemctl', 'xdg-mime'): sys.exit(99)
                         XDG_DATA_HOME=str(self.home / '.local/share'),
                         PATH=str(self.bin) + ':' + os.environ['PATH'], TEST_CALLS=str(self.calls))
 
-    def run_install(self, **env):
-        return subprocess.run(['sh', str(self.script)], env=dict(self.env, **env), capture_output=True, text=True)
+    def run_install(self, options=None, **env):
+        if options is None:
+            options = ['--terra', 'yes', '--greeter', 'no', '--font', 'iosevka']
+        return subprocess.run(['sh', str(self.script), *options], env=dict(self.env, **env),
+                              stdin=subprocess.DEVNULL, capture_output=True, text=True)
 
     def logged(self):
         return [json.loads(s) for s in self.calls.read_text().splitlines()] if self.calls.exists() else []
@@ -107,6 +110,42 @@ if name in ('gsettings', 'dconf', 'systemctl', 'xdg-mime'): sys.exit(99)
             self.assertFalse(any(arg in ('remove', 'swap', '--allowerasing', 'gdm', 'greetd') for arg in call))
         self.assertTrue(any('--setopt=terra.gpgcheck=1' in c for c in calls))
         self.assertTrue(any('wf-recorder' in c for c in calls))
+
+    def test_no_terra_and_jetbrains_never_install_or_configure_terra(self):
+        result = self.run_install(['--terra', 'no', '--greeter', 'no', '--font', 'jetbrains-mono'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.logged()
+        self.assertFalse(any('terra-release' in c or c[:3] == ['sudo', 'rpm', '--import'] for c in calls))
+        dnf_calls = [c for c in calls if c[:2] == ['sudo', 'dnf']]
+        self.assertTrue(dnf_calls)
+        self.assertTrue(all('--disable-repo=terra*' in c for c in dnf_calls))
+        self.assertTrue(any('jetbrains-mono-fonts' in c for c in dnf_calls))
+        self.assertFalse(any('iosevkaterm-nerd-fonts' in c for c in dnf_calls))
+        for relative in ('.config/waybar/style.css', '.config/hypr/hyprlock.conf',
+                         '.config/fuzzel/fuzzel.ini', '.config/desktop-clipboard/fuzzel.ini',
+                         '.config/mako/config', '.config/alek-hyprland/alacritty.toml',
+                         '.config/alek-hyprland/zathura/zathurarc'):
+            data = (self.home / relative).read_text()
+            self.assertIn('JetBrains Mono', data)
+            self.assertNotIn('Iosevka', data)
+        self.assertIn('Iosevka', (self.repo / 'home/.config/waybar/style.css').read_text())
+        repeated = self.run_install(['--terra', 'no', '--greeter', 'no', '--font', 'jetbrains-mono'])
+        self.assertEqual(repeated.returncode, 0, repeated.stderr)
+        self.assertIn('Added 0 files', repeated.stdout)
+
+    def test_missing_answers_never_silently_enable_repositories_or_greeter(self):
+        result = self.run_install([])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(c[0] == 'sudo' for c in self.logged()))
+        self.assertFalse(self.session.exists())
+
+    def test_font_change_conflict_stops_before_packages(self):
+        self.assertEqual(self.run_install().returncode, 0)
+        self.calls.write_text('')
+        result = self.run_install(['--terra', 'no', '--greeter', 'no', '--font', 'jetbrains-mono'])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Existing files were preserved', result.stderr)
+        self.assertFalse(any(c[0] == 'sudo' for c in self.logged()))
 
     def test_conflict_stops_before_packages_and_preserves_existing_files(self):
         p = self.write('.config/hypr/hyprland.lua', 'my configuration')

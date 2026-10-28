@@ -1,5 +1,4 @@
 dnf5-plugins
-terra-release
 hyprland
 uwsm
 waybar
@@ -37,8 +36,6 @@ adwaita-icon-theme
 adwaita-cursor-theme
 adwaita-sans-fonts
 adwaita-mono-fonts
-belleve-invis-iosevka-aile-fonts
-iosevkaterm-nerd-fonts
 python3
 python3-gobject-base
 util-linux

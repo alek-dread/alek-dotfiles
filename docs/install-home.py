@@ -13,13 +13,23 @@ SESSION = Path('/usr/share/wayland-sessions/alek-hyprland.desktop')
 PREFERENCES = '.config/desktop-record/settings.json'
 
 
+def font_data(data, font):
+    if font == 'jetbrains-mono':
+        for family in (b'IosevkaTerm Nerd Font Mono', b'IosevkaTerm Nerd Font Propo',
+                       b'Iosevka Aile', b'Adwaita Mono'):
+            data = data.replace(family, b'JetBrains Mono')
+    else:
+        data = data.replace(b'Adwaita Mono', b'IosevkaTerm Nerd Font Mono')
+    return data
+
+
 def parents(path):
     for directory in reversed(path.parents):
         if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
             raise RuntimeError(f'Unsafe destination directory: {directory}')
 
 
-def payload(home):
+def payload(home, font='iosevka'):
     entries = (REPO / 'docs/install-files.txt').read_text().splitlines()
     if not entries or len(set(entries)) != len(entries):
         raise RuntimeError('Invalid or duplicate installation manifest entries.')
@@ -31,7 +41,7 @@ def payload(home):
         source = REPO / 'home' / relative
         if source.is_symlink() or not source.is_file() or any(p.is_symlink() for p in source.parents):
             raise RuntimeError(f'Missing regular source file: {relative}')
-        data = source.read_bytes().replace(b'/home/alek', os.fsencode(home))
+        data = font_data(source.read_bytes(), font).replace(b'/home/alek', os.fsencode(home))
         result.append((home / relative, data, stat.S_IMODE(source.stat().st_mode), relative == PREFERENCES))
     return result
 
@@ -107,13 +117,14 @@ def interrupted(signum, frame):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['check', 'install', 'check-session', 'install-session'])
+    parser.add_argument('--font', choices=['iosevka', 'jetbrains-mono'], default='iosevka')
     args = parser.parse_args()
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGHUP, interrupted)
     if args.action.endswith('session'):
         items = [(SESSION, (REPO / 'docs/alek-hyprland.desktop').read_bytes(), 0o644, False)]
     else:
-        items = payload(Path.home())
+        items = payload(Path.home(), args.font)
     planned = missing(items)
     if args.action.startswith('install'):
         print(f'Added {install(planned)} files; existing files were preserved.')
